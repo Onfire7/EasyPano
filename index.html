@@ -380,12 +380,23 @@
   @media (max-width: 480px) {
     #page-editor { flex-direction: column; }
     .editor-sidebar {
-      width: 100%; height: 180px; flex-direction: row;
+      width: 100%; height: 210px;
+      flex-direction: row; flex-wrap: wrap; align-content: flex-start;
       border-right: none; border-bottom: 1px solid var(--border);
     }
-    .sidebar-tabs { flex-direction: column; border-bottom: none; border-right: 1px solid var(--border); width: 40px; }
+    /* Tour title spans the full width on its own row at the top so it no longer
+       squeezes the tabs/content into a narrow strip on the right. */
+    .editor-sidebar-header { flex: 0 0 100%; width: 100%; height: 42px; }
+    /* Tabs sit on the left of the row beneath the title... */
+    .sidebar-tabs {
+      flex: 0 0 40px; width: 40px; height: 168px;
+      flex-direction: column; border-bottom: none; border-right: 1px solid var(--border);
+    }
     .sidebar-tab { writing-mode: vertical-rl; padding: 10px 6px; border-bottom: none; border-right: 2px solid transparent; font-size: 9px; }
     .sidebar-tab.active { border-bottom: none; border-right-color: var(--accent); }
+    /* ...and the active panel fills the remaining width to the right. */
+    .sidebar-tab-panel { height: 168px; }
+    .sidebar-tab-panel.active { flex: 1 1 0; width: auto; }
   }
 
   /* Progress bar */
