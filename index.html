@@ -543,6 +543,7 @@
     <div class="sidebar-tabs">
       <div class="sidebar-tab active" onclick="Editor.switchTab('scenes',this)">Scenes</div>
       <div class="sidebar-tab" onclick="Editor.switchTab('hotspots',this)">Spots</div>
+      <div class="sidebar-tab" onclick="Editor.switchTab('galleries',this)">Gallery</div>
       <div class="sidebar-tab" onclick="Editor.switchTab('settings',this)">Config</div>
     </div>
     <!-- Scenes tab -->
@@ -554,6 +555,23 @@
     <div id="tab-hotspots" class="sidebar-tab-panel">
       <div id="hs-list"></div>
       <div class="info-note" id="hs-hint">Click on the panorama to place a new hotspot.</div>
+    </div>
+    <!-- Galleries tab -->
+    <div id="tab-galleries" class="sidebar-tab-panel">
+      <button class="btn sm" style="align-self:flex-start" onclick="Editor.addGalleryFromTab()">+ New Gallery</button>
+      <div id="gallery-list"></div>
+      <div id="gallery-editor" class="hidden">
+        <div class="divider"></div>
+        <div class="field">
+          <label>Gallery Name</label>
+          <input type="text" id="gallery-name-input" oninput="Editor.renameEditingGallery(this.value)">
+        </div>
+        <div class="flex justify-between align-center">
+          <label style="margin:0">Images</label>
+          <button class="btn sm" onclick="Editor.addImagesToEditingGallery()">+ Add Images</button>
+        </div>
+        <div id="gallery-editor-grid" class="gallery-grid" style="margin-top:6px"></div>
+      </div>
     </div>
     <!-- Settings tab -->
     <div id="tab-settings" class="sidebar-tab-panel">
@@ -617,12 +635,16 @@
             <input type="number" id="hs-entry-pitch" placeholder="0" step="1">
           </div>
         </div>
-        <div id="hs-lightbox-fields" class="hidden">
+        <div id="hs-lightbox-fields" style="display:none">
           <div class="field">
-            <label>Gallery Images</label>
-            <div id="hs-gallery-grid" class="gallery-grid"></div>
-            <button class="btn sm" style="margin-top:6px" onclick="document.getElementById('gallery-file-input').click()">+ Add Images</button>
+            <label>Gallery</label>
+            <select id="hs-gallery-select" onchange="Editor.onHsGalleryChange()"></select>
           </div>
+          <div class="flex gap8">
+            <button class="btn sm" onclick="Editor.newGalleryForHotspot()">+ New Gallery</button>
+            <button class="btn sm" onclick="Editor.addImagesToHsGallery()">+ Add Images</button>
+          </div>
+          <div id="hs-gallery-grid" class="gallery-grid" style="margin-top:6px"></div>
         </div>
         <div class="field">
           <label>Label</label>
@@ -912,6 +934,7 @@ function makeTour(name, desc='') {
     description: desc,
     defaultScene: null,
     scenes: [],
+    galleries: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -939,8 +962,32 @@ function makeHotspot(yaw, pitch, type='scene') {
     targetScene: null,
     entryYaw: 0,
     entryPitch: 0,
-    gallery: [], // [{src, caption}]
+    galleryId: null, // references a reusable tour-level gallery
   };
+}
+function makeGallery(name) {
+  return {
+    id: 'gal_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    name: name || 'Gallery',
+    images: [], // [{src, caption}]
+  };
+}
+// Ensure tour.galleries exists and migrate any legacy inline hotspot galleries
+// into reusable tour-level galleries. Returns true if the tour was modified.
+function ensureGalleries(tour) {
+  let changed = false;
+  if (!Array.isArray(tour.galleries)) { tour.galleries = []; changed = true; }
+  (tour.scenes || []).forEach(s => (s.hotspots || []).forEach(hs => {
+    if (hs.type === 'lightbox' && !hs.galleryId && Array.isArray(hs.gallery) && hs.gallery.length) {
+      const g = makeGallery(hs.label && hs.label !== 'View gallery' ? hs.label : 'Gallery ' + (tour.galleries.length + 1));
+      g.images = hs.gallery;
+      tour.galleries.push(g);
+      hs.galleryId = g.id;
+      delete hs.gallery;
+      changed = true;
+    }
+  }));
+  return changed;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -1222,6 +1269,7 @@ const Viewer = (() => {
   function load(tourId) {
     tour = Store.getTour(tourId);
     if (!tour) { toast('Tour not found', 'error'); return; }
+    if (ensureGalleries(tour)) Store.saveTour(tour.id, tour);
     $('viewer-tour-title').textContent = tour.name;
     buildSceneStrip();
     const first = tour.defaultScene
@@ -1297,8 +1345,9 @@ const Viewer = (() => {
     if (hs.type === 'scene' && hs.targetScene) {
       const target = (tour.scenes || []).find(s => s.id === hs.targetScene);
       if (target) loadScene(target, hs.entryYaw || 0, hs.entryPitch || 0);
-    } else if (hs.type === 'lightbox' && hs.gallery?.length) {
-      openLightbox(hs.gallery, 0);
+    } else if (hs.type === 'lightbox') {
+      const imgs = ((tour.galleries || []).find(g => g.id === hs.galleryId)?.images) || hs.gallery || [];
+      if (imgs.length) openLightbox(imgs, 0);
     }
   }
 
@@ -1478,7 +1527,8 @@ const Editor = (() => {
   let selectedHsId = null;
   let placingHs = false;
   let isDragging = false, lastX = 0, lastY = 0;
-  let pendingGalleryHsId = null;
+  let pendingGalleryId = null;
+  let editingGalleryId = null;
   let hsLabelDirty = false;
 
   // Gallery storage: hsId -> [{src (asset key), caption, dataUrl}]
@@ -1511,6 +1561,7 @@ const Editor = (() => {
     }
     tour = Store.getTour(tourId);
     if (!tour) { toast('Tour not found', 'error'); return; }
+    if (ensureGalleries(tour)) Store.saveTour(tour.id, tour);
     $('editor-tour-name-display').textContent = tour.name;
     renderSceneList();
     const first = tour.scenes[0];
@@ -1747,8 +1798,9 @@ const Editor = (() => {
     $('hs-entry-yaw').value = hs.entryYaw || 0;
     $('hs-entry-pitch').value = hs.entryPitch || 0;
 
-    // Gallery
-    renderGalleryGrid(hs);
+    // Gallery picker
+    populateHsGallerySelect(hs);
+    renderEditableGalleryGrid('hs-gallery-grid', hs.galleryId);
 
     onHsTypeChange();
   }
@@ -1764,6 +1816,10 @@ const Editor = (() => {
     const type = $('hs-type-select').value;
     $('hs-scene-fields').style.display = type === 'scene' ? '' : 'none';
     $('hs-lightbox-fields').style.display = type === 'lightbox' ? '' : 'none';
+    if (type === 'lightbox') {
+      const hs = currentHs();
+      if (hs) { populateHsGallerySelect(hs); renderEditableGalleryGrid('hs-gallery-grid', hs.galleryId); }
+    }
   }
 
   function onHsLabelInput() { hsLabelDirty = true; }
@@ -1777,10 +1833,18 @@ const Editor = (() => {
     if (s) $('hs-label-input').value = s.name;
   }
 
-  function renderGalleryGrid(hs) {
-    const grid = $('hs-gallery-grid');
+  // ── Galleries: reusable, tour-level, referenced by lightbox hotspots ──
+  function galleryById(id) { return (tour?.galleries || []).find(g => g.id === id) || null; }
+  function currentHs() { return (currentScene?.hotspots || []).find(h => h.id === selectedHsId) || null; }
+
+  // Renders an editable image grid (captions / reorder / delete) for a gallery
+  // into the given container; used by both the Gallery tab and the hotspot panel.
+  function renderEditableGalleryGrid(gridId, galleryId) {
+    const grid = $(gridId);
+    if (!grid) return;
     grid.innerHTML = '';
-    const list = hs.gallery || [];
+    const g = galleryById(galleryId);
+    const list = g ? (g.images || []) : [];
     list.forEach((img, i) => {
       const thumb = document.createElement('div');
       thumb.className = 'gallery-thumb';
@@ -1788,54 +1852,175 @@ const Editor = (() => {
       const cap = (img.caption || '').trim();
       thumb.innerHTML =
         `<img src="${src}" alt="">` +
-        `<div class="gallery-thumb-del" title="Remove" onclick="Editor.removeGalleryImg('${hs.id}',${i})">✕</div>` +
+        `<div class="gallery-thumb-del" title="Remove" onclick="Editor.galRemoveImage('${galleryId}',${i})">✕</div>` +
         `<div class="gallery-thumb-cap">` +
-          `<span class="gthumb-move" title="Move left" onclick="Editor.moveGalleryImg('${hs.id}',${i},-1)">‹</span>` +
-          `<span class="gthumb-cap-text${cap ? '' : ' empty'}" title="Edit caption" onclick="Editor.editGalleryCaption('${hs.id}',${i})">${cap ? esc(cap) : 'Add caption…'}</span>` +
-          `<span class="gthumb-move" title="Move right" onclick="Editor.moveGalleryImg('${hs.id}',${i},1)">›</span>` +
+          `<span class="gthumb-move" title="Move left" onclick="Editor.galMove('${galleryId}',${i},-1)">‹</span>` +
+          `<span class="gthumb-cap-text${cap ? '' : ' empty'}" title="Edit caption" onclick="Editor.galCaption('${galleryId}',${i})">${cap ? esc(cap) : 'Add caption…'}</span>` +
+          `<span class="gthumb-move" title="Move right" onclick="Editor.galMove('${galleryId}',${i},1)">›</span>` +
         `</div>`;
       grid.appendChild(thumb);
     });
-    if (!list.length) {
+    if (!g) {
+      grid.innerHTML = '<p class="text3 small" style="grid-column:1/-1">No gallery selected.</p>';
+    } else if (!list.length) {
       const note = document.createElement('div');
-      note.className = 'text3 small';
-      note.style.gridColumn = '1/-1';
-      note.textContent = 'No images yet — add images to build the gallery.';
+      note.className = 'text3 small'; note.style.gridColumn = '1/-1';
+      note.textContent = 'No images yet — use “+ Add Images”.';
       grid.appendChild(note);
     }
-    pendingGalleryHsId = hs.id;
   }
 
-  function removeGalleryImg(hsId, idx) {
-    const hs = (currentScene?.hotspots || []).find(h => h.id === hsId);
-    if (!hs) return;
-    hs.gallery.splice(idx, 1);
-    renderGalleryGrid(hs);
-    syncScene();
+  function refreshGalleryViews(galleryId) {
+    if (editingGalleryId === galleryId) renderEditableGalleryGrid('gallery-editor-grid', galleryId);
+    const hs = currentHs();
+    if (hs && hs.galleryId === galleryId && !$('hs-editor-panel').classList.contains('hidden')) {
+      renderEditableGalleryGrid('hs-gallery-grid', galleryId);
+    }
+    renderGalleryList();
   }
 
-  async function editGalleryCaption(hsId, idx) {
-    const hs = (currentScene?.hotspots || []).find(h => h.id === hsId);
-    if (!hs || !hs.gallery || !hs.gallery[idx]) return;
+  function galRemoveImage(galleryId, idx) {
+    const g = galleryById(galleryId); if (!g) return;
+    g.images.splice(idx, 1);
+    refreshGalleryViews(galleryId); syncScene();
+  }
+  async function galCaption(galleryId, idx) {
+    const g = galleryById(galleryId); if (!g || !g.images[idx]) return;
     const cap = await promptDialog({
       title: 'Image caption', label: 'Caption (shown in the lightbox)',
-      value: hs.gallery[idx].caption || '', okText: 'Save', placeholder: 'Optional caption'
+      value: g.images[idx].caption || '', okText: 'Save', placeholder: 'Optional caption'
     });
     if (cap === null) return; // cancelled (empty string clears the caption)
-    hs.gallery[idx].caption = cap;
-    renderGalleryGrid(hs);
+    g.images[idx].caption = cap;
+    refreshGalleryViews(galleryId); syncScene();
+  }
+  function galMove(galleryId, idx, dir) {
+    const g = galleryById(galleryId); if (!g) return;
+    const j = idx + dir; if (j < 0 || j >= g.images.length) return;
+    [g.images[idx], g.images[j]] = [g.images[j], g.images[idx]];
+    refreshGalleryViews(galleryId); syncScene();
+  }
+
+  // Gallery library (the "Gallery" sidebar tab)
+  function renderGalleryList() {
+    const list = $('gallery-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const gals = tour?.galleries || [];
+    if (!gals.length) {
+      list.innerHTML = '<p class="text3 small" style="padding:4px 2px">No galleries yet. Create one, then point a Gallery hotspot at it.</p>';
+    }
+    gals.forEach(g => {
+      const el = document.createElement('div');
+      el.className = 'scene-list-item' + (g.id === editingGalleryId ? ' active' : '');
+      el.innerHTML =
+        `<span class="scene-icon">⊞</span>` +
+        `<span class="scene-name">${esc(g.name)}</span>` +
+        `<span class="text3 small" style="margin-right:4px">${(g.images || []).length}</span>` +
+        `<button class="btn ghost icon-btn sm" title="Delete" onclick="Editor.deleteGallery('${g.id}', event)">✕</button>`;
+      el.addEventListener('click', (e) => { if (e.target.closest('button')) return; openEditingGallery(g.id); });
+      list.appendChild(el);
+    });
+  }
+
+  function openEditingGallery(id) {
+    editingGalleryId = id;
+    const g = galleryById(id);
+    $('gallery-editor').classList.toggle('hidden', !g);
+    if (g) {
+      $('gallery-name-input').value = g.name;
+      renderEditableGalleryGrid('gallery-editor-grid', id);
+    }
+    renderGalleryList();
+  }
+
+  async function addGallery() {
+    if (!tour) return null;
+    if (!tour.galleries) tour.galleries = [];
+    const name = await promptDialog({
+      title: 'New gallery', label: 'Gallery name',
+      value: 'Gallery ' + (tour.galleries.length + 1), okText: 'Create'
+    });
+    if (!name) return null;
+    const g = makeGallery(name);
+    tour.galleries.push(g);
+    syncScene();
+    renderGalleryList();
+    return g.id;
+  }
+
+  async function addGalleryFromTab() {
+    const id = await addGallery();
+    if (id) openEditingGallery(id);
+  }
+
+  function renameEditingGallery(name) {
+    const g = galleryById(editingGalleryId); if (!g) return;
+    g.name = name.trim() || g.name;
+    renderGalleryList();
     syncScene();
   }
 
-  function moveGalleryImg(hsId, idx, dir) {
-    const hs = (currentScene?.hotspots || []).find(h => h.id === hsId);
-    if (!hs || !hs.gallery) return;
-    const j = idx + dir;
-    if (j < 0 || j >= hs.gallery.length) return;
-    const arr = hs.gallery;
-    [arr[idx], arr[j]] = [arr[j], arr[idx]];
-    renderGalleryGrid(hs);
+  function deleteGallery(id, e) {
+    if (e) e.stopPropagation();
+    if (!tour) return;
+    if (!confirm('Delete this gallery? Hotspots using it will be cleared.')) return;
+    tour.galleries = (tour.galleries || []).filter(g => g.id !== id);
+    (tour.scenes || []).forEach(s => (s.hotspots || []).forEach(h => { if (h.galleryId === id) h.galleryId = null; }));
+    Store.deleteAssetsByPrefix(tour.id + '/gallery/' + id + '/');
+    if (editingGalleryId === id) { editingGalleryId = null; $('gallery-editor').classList.add('hidden'); }
+    renderGalleryList();
+    const hs = currentHs();
+    if (hs && !$('hs-editor-panel').classList.contains('hidden')) {
+      populateHsGallerySelect(hs);
+      renderEditableGalleryGrid('hs-gallery-grid', hs.galleryId);
+    }
     syncScene();
+    toast('Gallery deleted');
+  }
+
+  function addImagesToEditingGallery() {
+    if (!editingGalleryId) return;
+    pendingGalleryId = editingGalleryId;
+    $('gallery-file-input').click();
+  }
+
+  // Hotspot gallery picker
+  function populateHsGallerySelect(hs) {
+    const sel = $('hs-gallery-select');
+    sel.innerHTML = '<option value="">— select gallery —</option>';
+    (tour.galleries || []).forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g.id; opt.textContent = `${g.name} (${(g.images || []).length})`;
+      if (g.id === hs.galleryId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  function onHsGalleryChange() {
+    const hs = currentHs(); if (!hs) return;
+    hs.galleryId = $('hs-gallery-select').value || null;
+    if (!hsLabelDirty) { const g = galleryById(hs.galleryId); if (g) $('hs-label-input').value = g.name; }
+    renderEditableGalleryGrid('hs-gallery-grid', hs.galleryId);
+    syncScene();
+  }
+
+  async function newGalleryForHotspot() {
+    const hs = currentHs(); if (!hs) return;
+    const id = await addGallery();
+    if (!id) return;
+    hs.galleryId = id;
+    populateHsGallerySelect(hs);
+    if (!hsLabelDirty) { const g = galleryById(id); if (g) $('hs-label-input').value = g.name; }
+    renderEditableGalleryGrid('hs-gallery-grid', id);
+    syncScene();
+  }
+
+  function addImagesToHsGallery() {
+    const hs = currentHs();
+    if (!hs || !hs.galleryId) { toast('Select or create a gallery first', 'error'); return; }
+    pendingGalleryId = hs.galleryId;
+    $('gallery-file-input').click();
   }
 
   function saveHotspot() {
@@ -1848,6 +2033,8 @@ const Editor = (() => {
       hs.targetScene = $('hs-target-scene').value || null;
       hs.entryYaw = parseFloat($('hs-entry-yaw').value) || 0;
       hs.entryPitch = parseFloat($('hs-entry-pitch').value) || 0;
+    } else if (hs.type === 'lightbox') {
+      hs.galleryId = $('hs-gallery-select').value || null;
     }
     syncScene();
     closeHsPanel();
@@ -2167,21 +2354,17 @@ const Editor = (() => {
   }
 
   function onGalleryFileInput(e) {
-    const files = Array.from(e.target.files).filter(f => {
-      if (!validateImageFile(f)) return false;
-      return true;
-    });
-    if (!files.length || !pendingGalleryHsId) return;
-    const hs = (currentScene?.hotspots || []).find(h => h.id === pendingGalleryHsId);
-    if (!hs) return;
+    const files = Array.from(e.target.files).filter(f => validateImageFile(f));
+    const g = galleryById(pendingGalleryId);
+    if (!files.length || !g) { e.target.value = ''; return; }
     Promise.all(files.map(async f => {
       const dataUrl = await fileToDataUrl(f);
-      const key = tour.id + '/gallery/' + f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      Store.saveAsset(key, dataUrl);
+      const key = tour.id + '/gallery/' + g.id + '/' + f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      await Store.saveAsset(key, dataUrl);
       return { src: key, caption: f.name.replace(/\.[^.]+$/, '') };
     })).then(items => {
-      hs.gallery = [...(hs.gallery || []), ...items];
-      renderGalleryGrid(hs);
+      g.images = [...(g.images || []), ...items];
+      refreshGalleryViews(g.id);
       syncScene();
       toast(`${items.length} image(s) added`, 'success');
     });
@@ -2214,6 +2397,7 @@ const Editor = (() => {
     $('tab-' + name).classList.add('active');
     if (name === 'settings') renderSettingsPanel();
     if (name === 'hotspots') renderHsList();
+    if (name === 'galleries') renderGalleryList();
   }
 
   // ── Sync to storage ──
@@ -2247,6 +2431,7 @@ const Editor = (() => {
         (hs.gallery || []).forEach(g => assetKeys.add(g.src));
       });
     });
+    (tour.galleries || []).forEach(g => (g.images || []).forEach(im => assetKeys.add(im.src)));
 
     // Add assets to zip
     for (const key of assetKeys) {
@@ -2283,7 +2468,10 @@ const Editor = (() => {
     toggleHsPlacement,
     applySettings, setDefault, useCurrentAngleAsInitial,
     saveHotspot, deleteHotspot, closeHsPanel,
-    removeGalleryImg, editGalleryCaption, moveGalleryImg,
+    galRemoveImage, galCaption, galMove,
+    addGallery, addGalleryFromTab, openEditingGallery, renameEditingGallery, deleteGallery,
+    addImagesToEditingGallery, addImagesToHsGallery,
+    onHsGalleryChange, newGalleryForHotspot,
     onHsTypeChange, onTargetSceneChange, onHsLabelInput,
     onDragOver, onDragLeave, onDrop, onFileInput,
     onGalleryFileInput,
