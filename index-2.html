@@ -991,19 +991,26 @@ const Viewer = (() => {
 
   function init() {
     const canvas = $('viewer-canvas');
+    // Guard against a second renderer being created on the same canvas.
+    if (renderer) return;
     renderer = new PanoRenderer(canvas);
     renderer.onFrame = animateHotspots;
 
-    // Touch / Mouse drag
-    canvas.addEventListener('pointerdown', onDown);
-    canvas.addEventListener('pointermove', onMove);
-    canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', onUp);
-    canvas.addEventListener('wheel', onWheel, {passive: false});
-    // Prevent context menu
-    canvas.addEventListener('contextmenu', e => e.preventDefault());
-    // Device orientation
-    window.addEventListener('deviceorientation', onOrientation);
+    // Listeners reference the module-level `renderer`, so they only need to be
+    // attached once even though the renderer is recreated on each page entry.
+    if (!canvas._panoListenersBound) {
+      // Touch / Mouse drag
+      canvas.addEventListener('pointerdown', onDown);
+      canvas.addEventListener('pointermove', onMove);
+      canvas.addEventListener('pointerup', onUp);
+      canvas.addEventListener('pointercancel', onUp);
+      canvas.addEventListener('wheel', onWheel, {passive: false});
+      // Prevent context menu
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+      // Device orientation
+      window.addEventListener('deviceorientation', onOrientation);
+      canvas._panoListenersBound = true;
+    }
   }
 
   function load(tourId) {
@@ -1237,15 +1244,22 @@ const Editor = (() => {
 
   function init() {
     const canvas = $('editor-canvas');
+    // Guard against a second renderer being created on the same canvas.
+    if (renderer) return;
     renderer = new PanoRenderer(canvas);
     renderer.onFrame = updateHsDots;
 
-    canvas.addEventListener('pointerdown', onDown);
-    canvas.addEventListener('pointermove', onMove);
-    canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', onUp);
-    canvas.addEventListener('wheel', onWheel, {passive: false});
-    canvas.addEventListener('click', onCanvasClick);
+    // Listeners reference the module-level `renderer`, so they only need to be
+    // attached once even though the renderer is recreated on each page entry.
+    if (!canvas._panoListenersBound) {
+      canvas.addEventListener('pointerdown', onDown);
+      canvas.addEventListener('pointermove', onMove);
+      canvas.addEventListener('pointerup', onUp);
+      canvas.addEventListener('pointercancel', onUp);
+      canvas.addEventListener('wheel', onWheel, {passive: false});
+      canvas.addEventListener('click', onCanvasClick);
+      canvas._panoListenersBound = true;
+    }
   }
 
   function load(tourId) {
@@ -1925,8 +1939,10 @@ const App = (() => {
   let currentPage = null;
 
   function init() {
-    Viewer.init();
-    Editor.init();
+    // NOTE: Do not init Viewer/Editor here. Each page is initialised on entry
+    // (and torn down on exit) inside route(). Initialising here as well would
+    // create a second WebGLRenderer on the same canvas — the orphaned renderer
+    // keeps clearing the canvas every frame and the panorama never shows.
     window.addEventListener('hashchange', route);
     route();
   }
