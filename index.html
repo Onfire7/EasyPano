@@ -1178,20 +1178,55 @@ const Viewer = (() => {
   function lbNext() { lbIndex = (lbIndex + 1) % lbImages.length; showLbImage(); }
   function closeLightbox() { $('lightbox').classList.add('hidden'); }
 
-  // ── Drag ──
+  // ── Drag / pinch-zoom ──
+  const pointers = new Map();
+  let pinchDist = 0;
+  function pointerDistance() {
+    if (pointers.size < 2) return 0;
+    const it = pointers.values();
+    const a = it.next().value, b = it.next().value;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
   function onDown(e) {
-    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+    } else if (pointers.size === 2) {
+      dragging = false; pinchDist = pointerDistance();
+    }
     e.preventDefault();
   }
   function onMove(e) {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      const d = pointerDistance();
+      if (pinchDist > 0 && d > 0) {
+        renderer.fov = clamp(renderer.fov * (pinchDist / d), renderer.minFov, renderer.maxFov);
+        renderer.updateCamera();
+      }
+      pinchDist = d;
+      return;
+    }
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     lastX = e.clientX; lastY = e.clientY;
-    renderer.yaw += dx * 0.18;
-    renderer.pitch += dy * 0.18;
+    // "Grab" style: the scene follows the finger. Scale by FOV so panning feels
+    // consistent when zoomed in.
+    const k = 0.18 * (renderer.fov / 75);
+    renderer.yaw -= dx * k;
+    renderer.pitch += dy * k;
     renderer.updateCamera();
   }
-  function onUp() { dragging = false; }
+  function onUp(e) {
+    if (e && e.pointerId != null) pointers.delete(e.pointerId); else pointers.clear();
+    if (pointers.size < 2) pinchDist = 0;
+    if (pointers.size === 1) {
+      const p = pointers.values().next().value;
+      lastX = p.x; lastY = p.y; dragging = true;
+    } else if (pointers.size === 0) {
+      dragging = false;
+    }
+  }
   function onWheel(e) {
     e.preventDefault();
     renderer.fov = clamp(renderer.fov + e.deltaY * 0.05, renderer.minFov, renderer.maxFov);
@@ -1795,22 +1830,56 @@ const Editor = (() => {
     if (renderer) renderer.onFrame = positionHsDots;
   }
 
-  // ── Drag ──
+  // ── Drag / pinch-zoom ──
   let dragMoved = false;
+  const pointers = new Map();
+  let pinchDist = 0;
+  function pointerDistance() {
+    if (pointers.size < 2) return 0;
+    const it = pointers.values();
+    const a = it.next().value, b = it.next().value;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
   function onDown(e) {
-    isDragging = true; dragMoved = false;
-    lastX = e.clientX; lastY = e.clientY;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      isDragging = true; dragMoved = false;
+      lastX = e.clientX; lastY = e.clientY;
+    } else if (pointers.size === 2) {
+      isDragging = false; dragMoved = true; pinchDist = pointerDistance();
+    }
   }
   function onMove(e) {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      const d = pointerDistance();
+      if (pinchDist > 0 && d > 0) {
+        renderer.fov = clamp(renderer.fov * (pinchDist / d), renderer.minFov, renderer.maxFov);
+        renderer.updateCamera();
+      }
+      pinchDist = d;
+      return;
+    }
     if (!isDragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
     lastX = e.clientX; lastY = e.clientY;
-    renderer.yaw += dx * 0.18;
-    renderer.pitch += dy * 0.18;
+    // "Grab" style; scale by FOV so panning feels consistent when zoomed.
+    const k = 0.18 * (renderer.fov / 75);
+    renderer.yaw -= dx * k;
+    renderer.pitch += dy * k;
     renderer.updateCamera();
   }
-  function onUp() { isDragging = false; }
+  function onUp(e) {
+    if (e && e.pointerId != null) pointers.delete(e.pointerId); else pointers.clear();
+    if (pointers.size < 2) pinchDist = 0;
+    if (pointers.size === 1) {
+      const p = pointers.values().next().value;
+      lastX = p.x; lastY = p.y; isDragging = true;
+    } else if (pointers.size === 0) {
+      isDragging = false;
+    }
+  }
   function onWheel(e) {
     e.preventDefault();
     renderer.fov = clamp(renderer.fov + e.deltaY * 0.05, renderer.minFov, renderer.maxFov);
