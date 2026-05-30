@@ -875,7 +875,12 @@ class PanoRenderer {
     }
 
     if (this.texture) {
-      this.texture.wrapS = THREE.RepeatWrapping;
+      // Keep the NPOT-safe settings from loadScene so the texture isn't blacked
+      // out in a WebGL1 context.
+      this.texture.wrapS = THREE.ClampToEdgeWrapping;
+      this.texture.wrapT = THREE.ClampToEdgeWrapping;
+      this.texture.minFilter = THREE.LinearFilter;
+      this.texture.generateMipmaps = false;
       this.texture.needsUpdate = true;
     }
 
@@ -887,12 +892,42 @@ class PanoRenderer {
     this.scene.add(this.sphere);
   }
 
+  // Returns an image/canvas guaranteed to fit within the GPU's max texture
+  // size. Oversized sources (very common for phone panoramas) otherwise fail
+  // to upload and render as solid black.
+  _fitToMaxTextureSize(img) {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const maxTex = (this.renderer.capabilities && this.renderer.capabilities.maxTextureSize) || 4096;
+    if (w <= maxTex && h <= maxTex) return img;
+    const scale = Math.min(maxTex / w, maxTex / h);
+    const cw = Math.max(1, Math.floor(w * scale));
+    const ch = Math.max(1, Math.floor(h * scale));
+    const cvs = document.createElement('canvas');
+    cvs.width = cw; cvs.height = ch;
+    cvs.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    return cvs;
+  }
+
   async loadScene(scene, assetResolver) {
     if (this.texture) { this.texture.dispose(); this.texture = null; }
     const src = assetResolver(scene.image);
     const img = await this.loadImage(src);
-    this.texture = new THREE.Texture(img);
-    this.texture.wrapS = THREE.RepeatWrapping;
+    // Clamp huge panoramas (Pixel .PANO files can be 8k-16k px wide) to the GPU
+    // limit; otherwise the WebGL upload fails and the sphere renders black even
+    // though the 2D minimap (downsampled via drawImage) looks correct.
+    const texSource = this._fitToMaxTextureSize(img);
+    this.texture = new THREE.Texture(texSource);
+    // Panoramas are almost always non-power-of-two. In a WebGL1 context (three
+    // r128) an NPOT texture using RepeatWrapping or mipmaps fails to sample and
+    // renders as solid black. The sphere UVs always stay within [0,1], so no
+    // wrapping is needed — use ClampToEdge + linear filtering with mipmaps off
+    // so the image actually renders.
+    this.texture.wrapS = THREE.ClampToEdgeWrapping;
+    this.texture.wrapT = THREE.ClampToEdgeWrapping;
+    this.texture.minFilter = THREE.LinearFilter;
+    this.texture.magFilter = THREE.LinearFilter;
+    this.texture.generateMipmaps = false;
     this.texture.needsUpdate = true;
 
     let gpano = null;
