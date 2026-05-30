@@ -474,6 +474,32 @@
     color: rgba(255,255,255,0.75); user-select: none; font-size: 12px;
   }
   .gthumb-move:hover { color: var(--accent2); }
+
+  /* Arrival-view (entry point) picker */
+  .entry-preview {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 150px;
+    border: 1px solid var(--border2); border-radius: var(--r);
+    overflow: hidden; background: #000; cursor: grab;
+  }
+  .entry-preview:active { cursor: grabbing; }
+  .entry-preview canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .entry-reticle {
+    position: absolute; top: 50%; left: 50%; width: 26px; height: 26px;
+    transform: translate(-50%, -50%); pointer-events: none; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.9);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(0,0,0,0.5);
+  }
+  .entry-reticle::before, .entry-reticle::after {
+    content: ''; position: absolute; left: 50%; transform: translateX(-50%);
+    width: 1px; height: 7px; background: rgba(255,255,255,0.9);
+  }
+  .entry-reticle::before { top: -8px; }
+  .entry-reticle::after { bottom: -8px; }
+  .entry-hint {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 12px; text-align: center; padding: 10px; pointer-events: none;
+  }
+  .entry-readout { margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -627,12 +653,13 @@
             <select id="hs-target-scene" onchange="Editor.onTargetSceneChange()"></select>
           </div>
           <div class="field">
-            <label>Entry Yaw (°) — direction to face on arrival</label>
-            <input type="number" id="hs-entry-yaw" placeholder="0" step="1">
-          </div>
-          <div class="field">
-            <label>Entry Pitch (°)</label>
-            <input type="number" id="hs-entry-pitch" placeholder="0" step="1">
+            <label>Arrival view — drag to aim where visitors face</label>
+            <div id="entry-preview" class="entry-preview">
+              <canvas id="entry-canvas"></canvas>
+              <div class="entry-reticle"></div>
+              <div class="entry-hint" id="entry-hint">Select a target scene to aim the arrival view</div>
+            </div>
+            <div class="entry-readout mono small text2" id="entry-readout"></div>
           </div>
         </div>
         <div id="hs-lightbox-fields" style="display:none">
@@ -1529,6 +1556,9 @@ const Editor = (() => {
   let isDragging = false, lastX = 0, lastY = 0;
   let pendingGalleryId = null;
   let editingGalleryId = null;
+  let entryRenderer = null;
+  let entryLoadedSceneId = null;
+  let entryDragging = false, entryLastX = 0, entryLastY = 0;
   let hsLabelDirty = false;
 
   // Gallery storage: hsId -> [{src (asset key), caption, dataUrl}]
@@ -1795,9 +1825,6 @@ const Editor = (() => {
       sel.appendChild(opt);
     });
 
-    $('hs-entry-yaw').value = hs.entryYaw || 0;
-    $('hs-entry-pitch').value = hs.entryPitch || 0;
-
     // Gallery picker
     populateHsGallerySelect(hs);
     renderEditableGalleryGrid('hs-gallery-grid', hs.galleryId);
@@ -1808,6 +1835,7 @@ const Editor = (() => {
   function closeHsPanel() {
     $('hs-editor-panel').classList.add('hidden');
     selectedHsId = null;
+    teardownEntryRenderer();
     renderHsList();
     updateHsDots();
   }
@@ -1819,18 +1847,102 @@ const Editor = (() => {
     if (type === 'lightbox') {
       const hs = currentHs();
       if (hs) { populateHsGallerySelect(hs); renderEditableGalleryGrid('hs-gallery-grid', hs.galleryId); }
+      teardownEntryRenderer();
+    } else if (type === 'scene') {
+      loadEntryPreview();
     }
   }
 
   function onHsLabelInput() { hsLabelDirty = true; }
 
   function onTargetSceneChange() {
-    // Auto-fill the label with the chosen scene's name unless the user has
-    // typed their own label.
-    if (hsLabelDirty) return;
+    const hs = currentHs();
     const sel = $('hs-target-scene');
-    const s = (tour?.scenes || []).find(x => x.id === sel.value);
-    if (s) $('hs-label-input').value = s.name;
+    const newId = sel.value || null;
+    if (hs && hs.targetScene !== newId) {
+      // Default the arrival view to the newly chosen scene's initial orientation.
+      hs.targetScene = newId;
+      const s = (tour?.scenes || []).find(x => x.id === newId);
+      hs.entryYaw = s ? (s.initialYaw || 0) : 0;
+      hs.entryPitch = s ? (s.initialPitch || 0) : 0;
+    }
+    if (!hsLabelDirty) {
+      const s = (tour?.scenes || []).find(x => x.id === newId);
+      if (s) $('hs-label-input').value = s.name;
+    }
+    loadEntryPreview();
+    syncScene();
+  }
+
+  // ── Arrival-view picker: a mini panorama of the target scene with a centre
+  //    reticle. Dragging aims where the visitor faces on arrival, which is
+  //    stored as the hotspot's entry yaw/pitch. ──
+  function ensureEntryRenderer() {
+    if (entryRenderer) return;
+    const canvas = $('entry-canvas');
+    entryRenderer = new PanoRenderer(canvas);
+    if (!canvas._entryBound) {
+      canvas.addEventListener('pointerdown', e => { entryDragging = true; entryLastX = e.clientX; entryLastY = e.clientY; e.preventDefault(); });
+      canvas.addEventListener('pointermove', e => {
+        if (!entryDragging || !entryRenderer) return;
+        const dx = e.clientX - entryLastX, dy = e.clientY - entryLastY;
+        entryLastX = e.clientX; entryLastY = e.clientY;
+        const k = 0.2 * (entryRenderer.fov / 75);
+        entryRenderer.yaw -= dx * k;
+        entryRenderer.pitch += dy * k;
+        entryRenderer.updateCamera();
+        onEntryChange();
+      });
+      const end = () => { entryDragging = false; };
+      canvas.addEventListener('pointerup', end);
+      canvas.addEventListener('pointercancel', end);
+      canvas.addEventListener('wheel', e => {
+        if (!entryRenderer) return;
+        e.preventDefault();
+        entryRenderer.fov = clamp(entryRenderer.fov + e.deltaY * 0.05, entryRenderer.minFov, entryRenderer.maxFov);
+        entryRenderer.updateCamera();
+      }, { passive: false });
+      canvas._entryBound = true;
+    }
+  }
+
+  function onEntryChange() {
+    if (!entryRenderer) return;
+    const y = Math.round(entryRenderer.yaw), p = Math.round(entryRenderer.pitch);
+    $('entry-readout').textContent = `Facing  yaw ${y}°  ·  pitch ${p}°`;
+    const hs = currentHs();
+    if (hs && hs.type === 'scene' && entryLoadedSceneId && hs.targetScene === entryLoadedSceneId) {
+      hs.entryYaw = y; hs.entryPitch = p;
+      syncScene();
+    }
+  }
+
+  async function loadEntryPreview() {
+    const hs = currentHs();
+    if (!hs || hs.type !== 'scene') { teardownEntryRenderer(); return; }
+    const target = (tour?.scenes || []).find(s => s.id === hs.targetScene);
+    if (!target) {
+      teardownEntryRenderer();
+      $('entry-canvas').style.visibility = 'hidden';
+      $('entry-hint').style.display = 'flex';
+      $('entry-readout').textContent = '';
+      return;
+    }
+    ensureEntryRenderer();
+    $('entry-hint').style.display = 'none';
+    $('entry-canvas').style.visibility = 'visible';
+    entryRenderer.resize();
+    await entryRenderer.loadScene(target, assetSrc);
+    entryRenderer.yaw = hs.entryYaw || 0;
+    entryRenderer.pitch = hs.entryPitch || 0;
+    entryRenderer.updateCamera();
+    entryLoadedSceneId = target.id;
+    onEntryChange();
+  }
+
+  function teardownEntryRenderer() {
+    if (entryRenderer) { entryRenderer.dispose(); entryRenderer = null; }
+    entryLoadedSceneId = null;
   }
 
   // ── Galleries: reusable, tour-level, referenced by lightbox hotspots ──
@@ -2031,8 +2143,10 @@ const Editor = (() => {
     hs.type = $('hs-type-select').value;
     if (hs.type === 'scene') {
       hs.targetScene = $('hs-target-scene').value || null;
-      hs.entryYaw = parseFloat($('hs-entry-yaw').value) || 0;
-      hs.entryPitch = parseFloat($('hs-entry-pitch').value) || 0;
+      if (entryRenderer && entryLoadedSceneId && entryLoadedSceneId === hs.targetScene) {
+        hs.entryYaw = Math.round(entryRenderer.yaw);
+        hs.entryPitch = Math.round(entryRenderer.pitch);
+      }
     } else if (hs.type === 'lightbox') {
       hs.galleryId = $('hs-gallery-select').value || null;
     }
@@ -2456,6 +2570,7 @@ const Editor = (() => {
 
   function destroy() {
     if (renderer) { renderer.dispose(); renderer = null; }
+    teardownEntryRenderer();
     tour = null; currentScene = null; selectedHsId = null;
   }
 
