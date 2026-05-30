@@ -728,19 +728,41 @@ const Store = {
     const all = this.get();
     return Object.entries(all).map(([id, t]) => ({id, ...t}));
   },
-  // Asset storage — store as data URLs
+  // Asset storage — store as data URLs.
+  // localStorage has a small quota (~5 MB) and may be unavailable entirely on
+  // opaque origins (e.g. opening this HTML from a content:// or file:// URL on
+  // mobile). A full-resolution panorama easily exceeds that, so we also keep an
+  // in-memory cache. Without it, saveAsset() silently failed and the renderer
+  // later resolved the image to null -> a missing 'tours/...' URL -> load error
+  // -> no sphere -> a black view (while the minimap, seeded directly from the
+  // in-memory data URL, still showed the image).
   ASSET_KEY: 'panorama_assets_v1',
+  _mem: {},
   getAssets() { try { return JSON.parse(localStorage.getItem(this.ASSET_KEY) || '{}'); } catch { return {}; } },
-  getAsset(key) { return this.getAssets()[key] || null; },
+  getAsset(key) {
+    if (this._mem[key] != null) return this._mem[key];
+    return this.getAssets()[key] || null;
+  },
   saveAsset(key, dataUrl) {
-    const a = this.getAssets(); a[key] = dataUrl;
-    try { localStorage.setItem(this.ASSET_KEY, JSON.stringify(a)); return true; }
-    catch(e) { console.warn('Asset storage full:', e); return false; }
+    // Always cache in memory so the asset is usable this session regardless of
+    // whether it fits in (or can even reach) localStorage.
+    this._mem[key] = dataUrl;
+    let persisted = true;
+    try {
+      const a = this.getAssets(); a[key] = dataUrl;
+      localStorage.setItem(this.ASSET_KEY, JSON.stringify(a));
+    } catch(e) {
+      console.warn('Asset could not be persisted to localStorage:', e);
+      persisted = false;
+    }
+    return persisted;
   },
   deleteAssetsByPrefix(prefix) {
-    const a = this.getAssets();
+    Object.keys(this._mem).filter(k => k.startsWith(prefix)).forEach(k => delete this._mem[k]);
+    let a = {};
+    try { a = this.getAssets(); } catch { a = {}; }
     Object.keys(a).filter(k => k.startsWith(prefix)).forEach(k => delete a[k]);
-    localStorage.setItem(this.ASSET_KEY, JSON.stringify(a));
+    try { localStorage.setItem(this.ASSET_KEY, JSON.stringify(a)); } catch(e) { /* ignore */ }
   }
 };
 
@@ -1827,7 +1849,7 @@ const Editor = (() => {
     // Create scene
     const sceneName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
     const assetKey = (tour.id + '/' + file.name).replace(/[^a-zA-Z0-9._/-]/g, '_');
-    Store.saveAsset(assetKey, dataUrl);
+    const persisted = Store.saveAsset(assetKey, dataUrl);
 
     const scene = makeScene(sceneName, assetKey);
     // Seed minimap immediately from the just-uploaded data URL
@@ -1855,7 +1877,11 @@ const Editor = (() => {
     syncScene();
     renderSceneList();
     await loadScene(scene);
-    toast(gpano ? 'Image loaded — GPano metadata detected ✓' : 'Image loaded — adjust coverage in Config', 'success', 3500);
+    if (!persisted) {
+      toast('Image loaded — too large to save, so it will be lost on reload', '', 5000);
+    } else {
+      toast(gpano ? 'Image loaded — GPano metadata detected ✓' : 'Image loaded — adjust coverage in Config', 'success', 3500);
+    }
   }
 
   function onGalleryFileInput(e) {
