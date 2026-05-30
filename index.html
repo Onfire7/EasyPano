@@ -1009,20 +1009,25 @@ class PanoRenderer {
   // Project 3D direction to canvas 2D position
   // Returns {x, y, visible} in pixel coords
   project(yawDeg, pitchDeg) {
-    const dir = new THREE.Vector3();
-    const euler = new THREE.Euler(rad(pitchDeg), rad(-yawDeg), 0, 'YXZ');
-    dir.set(0, 0, -1).applyEuler(euler);
+    // onFrame runs before the renderer refreshes the camera matrices, so make
+    // sure they reflect the current orientation before projecting.
+    this.camera.updateMatrixWorld();
+    this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
 
-    // Transform into camera space
-    const camDir = dir.clone().applyMatrix4(new THREE.Matrix4().copy(this.camera.matrixWorldInverse).setPosition(0,0,0));
-    // Project
-    const projected = camDir.clone().project(this.camera);
+    const euler = new THREE.Euler(rad(pitchDeg), rad(-yawDeg), 0, 'YXZ');
+    const dir = new THREE.Vector3(0, 0, -1).applyEuler(euler);
+    // A point on the ray from the camera in the hotspot's direction.
+    const point = this.camera.position.clone().add(dir.multiplyScalar(10));
+
+    // Is the point in front of the camera? (view-space z is negative ahead)
+    const view = point.clone().applyMatrix4(this.camera.matrixWorldInverse);
+    const ndc = point.project(this.camera);
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     return {
-      x: (projected.x * 0.5 + 0.5) * w,
-      y: (-projected.y * 0.5 + 0.5) * h,
-      visible: projected.z < 1,
+      x: (ndc.x * 0.5 + 0.5) * w,
+      y: (-ndc.y * 0.5 + 0.5) * h,
+      visible: view.z < 0,
     };
   }
 
@@ -1038,7 +1043,7 @@ class PanoRenderer {
     ndc.unproject(this.camera);
     ndc.sub(this.camera.position).normalize();
     const pitchDeg = deg(Math.asin(clamp(ndc.y, -1, 1)));
-    const yawDeg = -deg(Math.atan2(ndc.x, -ndc.z));
+    const yawDeg = deg(Math.atan2(ndc.x, -ndc.z));
     return { yaw: yawDeg, pitch: pitchDeg };
   }
 }
