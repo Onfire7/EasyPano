@@ -336,7 +336,7 @@
   .upload-zone small { color: var(--text3); font-size: 11px; }
 
   /* New tour modal */
-  #modal-overlay {
+  #modal-overlay, #prompt-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.8);
     display: flex; align-items: center; justify-content: center; z-index: 200;
   }
@@ -643,6 +643,23 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════
+     GENERIC TEXT PROMPT MODAL
+══════════════════════════════════════════════ -->
+<div id="prompt-overlay" class="hidden">
+  <div class="modal">
+    <h2 id="prompt-title">Enter a value</h2>
+    <div class="field">
+      <label id="prompt-label">Value</label>
+      <input type="text" id="prompt-input">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="prompt-cancel">Cancel</button>
+      <button class="btn primary" id="prompt-ok">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -661,6 +678,41 @@ function toast(msg, type='', dur=2500) {
   const t = $('toast'); t.textContent = msg;
   t.className = 'show' + (type ? ' ' + type : '');
   clearTimeout(t._t); t._t = setTimeout(() => t.className = '', dur);
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+/* Generic modal text prompt. Resolves to the entered string (possibly empty)
+   when accepted, or null when cancelled. The field is pre-selected so the
+   suggested value can be typed over, accepted with Enter, edited, or cancelled
+   with Escape. */
+function promptDialog({ title = 'Enter a value', label = 'Value', value = '', okText = 'OK', placeholder = '' } = {}) {
+  return new Promise((resolve) => {
+    const overlay = $('prompt-overlay');
+    $('prompt-title').textContent = title;
+    $('prompt-label').textContent = label;
+    const input = $('prompt-input');
+    input.value = value;
+    input.placeholder = placeholder;
+    $('prompt-ok').textContent = okText;
+    overlay.classList.remove('hidden');
+    setTimeout(() => { input.focus(); input.select(); }, 30);
+    const done = (result) => {
+      overlay.classList.add('hidden');
+      $('prompt-ok').onclick = null;
+      $('prompt-cancel').onclick = null;
+      input.onkeydown = null;
+      overlay.onmousedown = null;
+      resolve(result);
+    };
+    $('prompt-ok').onclick = () => done(input.value.trim());
+    $('prompt-cancel').onclick = () => done(null);
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); done(input.value.trim()); }
+      else if (e.key === 'Escape') { e.preventDefault(); done(null); }
+    };
+    overlay.onmousedown = (e) => { if (e.target === overlay) done(null); };
+  });
 }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function deg(r) { return r * 180 / Math.PI; }
@@ -1991,14 +2043,21 @@ const Editor = (() => {
 
   async function handleImageFile(file) {
     if (!validateImageFile(file)) return;
-    toast('Reading image…');
 
+    // Ask what to call the scene — prefilled with the file name (no extension)
+    // and pre-selected so it can be typed over, accepted with Enter, or edited.
+    const suggested = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ').trim();
+    const sceneName = await promptDialog({
+      title: 'Name this scene', label: 'Scene name', value: suggested, okText: 'Add Scene'
+    });
+    if (!sceneName) return; // cancelled or left blank
+
+    toast('Reading image…');
     const arrayBuffer = await file.arrayBuffer();
     const gpano = XMP.parse(arrayBuffer);
     const dataUrl = await fileToDataUrl(file);
 
     // Create scene
-    const sceneName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
     const assetKey = (tour.id + '/' + file.name).replace(/[^a-zA-Z0-9._/-]/g, '_');
     const persisted = await Store.saveAsset(assetKey, dataUrl);
 
