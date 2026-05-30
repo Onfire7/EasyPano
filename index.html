@@ -449,16 +449,31 @@
   .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .gallery-thumb {
     aspect-ratio: 1; background: var(--bg2); border-radius: 4px; overflow: hidden;
-    cursor: pointer; position: relative; transition: opacity 0.15s;
+    position: relative; transition: opacity 0.15s;
   }
   .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .gallery-thumb-del {
     position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
     background: rgba(0,0,0,0.7); border-radius: 50%; display: flex; align-items: center;
     justify-content: center; font-size: 10px; cursor: pointer; color: var(--danger);
-    opacity: 0; transition: opacity 0.15s;
+    opacity: 0.9; transition: opacity 0.15s; z-index: 2;
   }
-  .gallery-thumb:hover .gallery-thumb-del { opacity: 1; }
+  .gallery-thumb-del:hover { background: rgba(0,0,0,0.95); }
+  .gallery-thumb-cap {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; gap: 2px;
+    background: rgba(0,0,0,0.62); color: #fff; font-size: 9px; line-height: 1.2;
+  }
+  .gthumb-cap-text {
+    flex: 1; padding: 3px 4px; cursor: text; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .gthumb-cap-text.empty { color: rgba(255,255,255,0.55); font-style: italic; }
+  .gthumb-move {
+    width: 15px; text-align: center; cursor: pointer; flex-shrink: 0;
+    color: rgba(255,255,255,0.75); user-select: none; font-size: 12px;
+  }
+  .gthumb-move:hover { color: var(--accent2); }
 </style>
 </head>
 <body>
@@ -582,10 +597,6 @@
           <button class="btn ghost icon-btn sm" onclick="Editor.closeHsPanel()">✕</button>
         </div>
         <div class="field">
-          <label>Label</label>
-          <input type="text" id="hs-label-input" placeholder="Hotspot label">
-        </div>
-        <div class="field">
           <label>Type</label>
           <select id="hs-type-select" onchange="Editor.onHsTypeChange()">
             <option value="scene">→ Go to Scene</option>
@@ -595,7 +606,7 @@
         <div id="hs-scene-fields">
           <div class="field">
             <label>Target Scene</label>
-            <select id="hs-target-scene"></select>
+            <select id="hs-target-scene" onchange="Editor.onTargetSceneChange()"></select>
           </div>
           <div class="field">
             <label>Entry Yaw (°) — direction to face on arrival</label>
@@ -612,6 +623,10 @@
             <div id="hs-gallery-grid" class="gallery-grid"></div>
             <button class="btn sm" style="margin-top:6px" onclick="document.getElementById('gallery-file-input').click()">+ Add Images</button>
           </div>
+        </div>
+        <div class="field">
+          <label>Label</label>
+          <input type="text" id="hs-label-input" placeholder="Hotspot label" oninput="Editor.onHsLabelInput()">
         </div>
         <div class="flex gap8" style="margin-top:4px">
           <button class="btn sm primary grow" onclick="Editor.saveHotspot()">Save Hotspot</button>
@@ -1464,6 +1479,7 @@ const Editor = (() => {
   let placingHs = false;
   let isDragging = false, lastX = 0, lastY = 0;
   let pendingGalleryHsId = null;
+  let hsLabelDirty = false;
 
   // Gallery storage: hsId -> [{src (asset key), caption, dataUrl}]
   const pendingGalleries = {};
@@ -1714,6 +1730,8 @@ const Editor = (() => {
     panel.classList.remove('hidden');
     $('hs-panel-title').textContent = hs.type === 'lightbox' ? 'Gallery Hotspot' : 'Scene Hotspot';
     $('hs-label-input').value = hs.label || '';
+    // Treat an existing custom label as edited so auto-fill won't clobber it.
+    hsLabelDirty = !!(hs.label && hs.label !== 'Go to scene' && hs.label !== 'View gallery');
     $('hs-type-select').value = hs.type;
 
     // Populate target scene dropdown
@@ -1748,16 +1766,43 @@ const Editor = (() => {
     $('hs-lightbox-fields').style.display = type === 'lightbox' ? '' : 'none';
   }
 
+  function onHsLabelInput() { hsLabelDirty = true; }
+
+  function onTargetSceneChange() {
+    // Auto-fill the label with the chosen scene's name unless the user has
+    // typed their own label.
+    if (hsLabelDirty) return;
+    const sel = $('hs-target-scene');
+    const s = (tour?.scenes || []).find(x => x.id === sel.value);
+    if (s) $('hs-label-input').value = s.name;
+  }
+
   function renderGalleryGrid(hs) {
     const grid = $('hs-gallery-grid');
     grid.innerHTML = '';
-    (hs.gallery || []).forEach((img, i) => {
+    const list = hs.gallery || [];
+    list.forEach((img, i) => {
       const thumb = document.createElement('div');
       thumb.className = 'gallery-thumb';
       const src = Store.getAsset(img.src) || ('tours/' + img.src);
-      thumb.innerHTML = `<img src="${src}" alt=""><div class="gallery-thumb-del" onclick="Editor.removeGalleryImg('${hs.id}',${i})">✕</div>`;
+      const cap = (img.caption || '').trim();
+      thumb.innerHTML =
+        `<img src="${src}" alt="">` +
+        `<div class="gallery-thumb-del" title="Remove" onclick="Editor.removeGalleryImg('${hs.id}',${i})">✕</div>` +
+        `<div class="gallery-thumb-cap">` +
+          `<span class="gthumb-move" title="Move left" onclick="Editor.moveGalleryImg('${hs.id}',${i},-1)">‹</span>` +
+          `<span class="gthumb-cap-text${cap ? '' : ' empty'}" title="Edit caption" onclick="Editor.editGalleryCaption('${hs.id}',${i})">${cap ? esc(cap) : 'Add caption…'}</span>` +
+          `<span class="gthumb-move" title="Move right" onclick="Editor.moveGalleryImg('${hs.id}',${i},1)">›</span>` +
+        `</div>`;
       grid.appendChild(thumb);
     });
+    if (!list.length) {
+      const note = document.createElement('div');
+      note.className = 'text3 small';
+      note.style.gridColumn = '1/-1';
+      note.textContent = 'No images yet — add images to build the gallery.';
+      grid.appendChild(note);
+    }
     pendingGalleryHsId = hs.id;
   }
 
@@ -1765,6 +1810,30 @@ const Editor = (() => {
     const hs = (currentScene?.hotspots || []).find(h => h.id === hsId);
     if (!hs) return;
     hs.gallery.splice(idx, 1);
+    renderGalleryGrid(hs);
+    syncScene();
+  }
+
+  async function editGalleryCaption(hsId, idx) {
+    const hs = (currentScene?.hotspots || []).find(h => h.id === hsId);
+    if (!hs || !hs.gallery || !hs.gallery[idx]) return;
+    const cap = await promptDialog({
+      title: 'Image caption', label: 'Caption (shown in the lightbox)',
+      value: hs.gallery[idx].caption || '', okText: 'Save', placeholder: 'Optional caption'
+    });
+    if (cap === null) return; // cancelled (empty string clears the caption)
+    hs.gallery[idx].caption = cap;
+    renderGalleryGrid(hs);
+    syncScene();
+  }
+
+  function moveGalleryImg(hsId, idx, dir) {
+    const hs = (currentScene?.hotspots || []).find(h => h.id === hsId);
+    if (!hs || !hs.gallery) return;
+    const j = idx + dir;
+    if (j < 0 || j >= hs.gallery.length) return;
+    const arr = hs.gallery;
+    [arr[idx], arr[j]] = [arr[j], arr[idx]];
     renderGalleryGrid(hs);
     syncScene();
   }
@@ -2214,8 +2283,8 @@ const Editor = (() => {
     toggleHsPlacement,
     applySettings, setDefault, useCurrentAngleAsInitial,
     saveHotspot, deleteHotspot, closeHsPanel,
-    removeGalleryImg,
-    onHsTypeChange,
+    removeGalleryImg, editGalleryCaption, moveGalleryImg,
+    onHsTypeChange, onTargetSceneChange, onHsLabelInput,
     onDragOver, onDragLeave, onDrop, onFileInput,
     onGalleryFileInput,
     save, exportZip,
