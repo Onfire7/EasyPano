@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Panorama Tours</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0a0a0b;
+    --bg1:      #111113;
+    --bg2:      #18181c;
+    --bg3:      #222228;
+    --border:   #2a2a32;
+    --border2:  #3a3a44;
+    --text:     #e8e8f0;
+    --text2:    #9090a8;
+    --text3:    #606070;
+    --accent:   #c8a96e;
+    --accent2:  #e8c98e;
+    --danger:   #e05050;
+    --success:  #50c878;
+    --r:        6px;
+    --sidebar:  280px;
+    --mono:     'DM Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+  }
+
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ── UTILITY ── */
+  .hidden { display: none !important; }
+  .mono { font-family: var(--mono); }
+  .flex { display: flex; }
+  .col { flex-direction: column; }
+  .gap2 { gap: 2px; }
+  .gap4 { gap: 4px; }
+  .gap8 { gap: 8px; }
+  .gap12 { gap: 12px; }
+  .gap16 { gap: 16px; }
+  .align-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .grow { flex: 1; }
+  .overflow-y { overflow-y: auto; }
+  .text2 { color: var(--text2); }
+  .text3 { color: var(--text3); }
+  .accent { color: var(--accent); }
+  .danger { color: var(--danger); }
+  .small { font-size: 11px; }
+  .upper { text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* ── PAGES ── */
+  .page { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .page.active { opacity: 1; pointer-events: all; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 7px 14px; border-radius: var(--r); border: 1px solid var(--border2);
+    background: var(--bg2); color: var(--text); font-family: var(--sans); font-size: 13px;
+    cursor: pointer; transition: all 0.15s; user-select: none; white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg3); border-color: var(--border2); }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary { background: var(--accent); color: #1a1408; border-color: var(--accent2); font-weight: 500; }
+  .btn.primary:hover { background: var(--accent2); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--text2); }
+  .btn.ghost:hover { background: var(--bg2); color: var(--text); }
+  .btn.danger-btn { border-color: var(--danger); color: var(--danger); }
+  .btn.danger-btn:hover { background: rgba(224,80,80,0.1); }
+  .btn.icon-btn { padding: 7px; min-width: 32px; }
+  .btn.sm { padding: 4px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+  /* ── INPUTS ── */
+  input[type=text], input[type=number], textarea, select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--r);
+    color: var(--text); font-family: var(--sans); font-size: 13px;
+    padding: 7px 10px; outline: none; transition: border-color 0.15s; width: 100%;
+  }
+  input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 60px; }
+  select option { background: var(--bg1); }
+  label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field-row { display: flex; gap: 8px; }
+  .field-row .field { flex: 1; }
+
+  /* ── DIVIDER ── */
+  .divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+  /* ══════════════════════════════════════════
+     TOURS LIST PAGE
+  ══════════════════════════════════════════ */
+  #page-tours { overflow-y: auto; }
+
+  .tours-header {
+    padding: 40px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .tours-header h1 { font-size: 28px; font-weight: 300; letter-spacing: -0.02em; }
+  .tours-header h1 span { color: var(--accent); }
+
+  .tours-grid {
+    padding: 32px 40px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .tour-card {
+    background: var(--bg1); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; cursor: pointer; transition: border-color 0.2s, transform 0.2s;
+    display: flex; flex-direction: column;
+  }
+  .tour-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .tour-card-thumb {
+    aspect-ratio: 16/7; background: var(--bg2); overflow: hidden; position: relative;
+  }
+  .tour-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .tour-card-thumb .thumb-placeholder {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 32px;
+  }
+  .tour-card-body { padding: 14px 16px 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .tour-card-name { font-size: 16px; font-weight: 400; }
+  .tour-card-meta { font-size: 12px; color: var(--text3); font-family: var(--mono); }
+  .tour-card-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 8px; }
+
+  .empty-state {
+    padding: 80px 40px; text-align: center; color: var(--text3);
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  .empty-state .icon { font-size: 48px; opacity: 0.4; }
+  .empty-state p { max-width: 300px; line-height: 1.6; }
+
+  /* ══════════════════════════════════════════
+     VIEWER PAGE
+  ══════════════════════════════════════════ */
+  #page-viewer { background: #000; }
+
+  #viewer-canvas-wrap { position: absolute; inset: 0; }
+  #viewer-canvas { display: block; width: 100%; height: 100%; }
+
+  /* Viewer HUD */
+  .viewer-hud {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column;
+  }
+  .viewer-top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; gap: 12px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+    pointer-events: all;
+  }
+  .viewer-title { font-size: 14px; color: #fff; font-weight: 400; opacity: 0.9; }
+  .viewer-scene-name { font-size: 11px; color: rgba(255,255,255,0.5); font-family: var(--mono); margin-top: 2px; }
+  .viewer-controls { display: flex; gap: 6px; }
+  .viewer-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+    color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; transition: all 0.15s; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .viewer-btn:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
+  .viewer-btn.active { background: rgba(200,169,110,0.4); border-color: rgba(200,169,110,0.8); }
+  .viewer-bottom-bar {
+    margin-top: auto; padding: 0 16px 20px;
+    background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+    pointer-events: all;
+  }
+
+  /* Scene strip */
+  .scene-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .scene-strip::-webkit-scrollbar { height: 2px; }
+  .scene-chip {
+    flex-shrink: 0; padding: 6px 12px; border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px); color: rgba(255,255,255,0.8);
+    cursor: pointer; font-size: 12px; transition: all 0.15s; white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .scene-chip:hover { border-color: rgba(200,169,110,0.6); color: #fff; }
+  .scene-chip.active { background: rgba(200,169,110,0.25); border-color: rgba(200,169,110,0.8); color: #fff; }
+
+  /* Hotspot */
+  .hs-marker {
+    position: absolute; transform: translate(-50%, -50%);
+    pointer-events: all; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hs-dot {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; transition: transform 0.2s, background 0.2s;
+    box-shadow: 0 0 0 4px rgba(255,255,255,0.1);
+    animation: hs-pulse 2.5s ease-in-out infinite;
+  }
+  .hs-dot:hover { transform: scale(1.15); background: rgba(200,169,110,0.4); }
+  @keyframes hs-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(255,255,255,0.1); }
+    50% { box-shadow: 0 0 0 8px rgba(255,255,255,0.03); }
+  }
+  .hs-label {
+    position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+    color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 4px;
+    white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s;
+  }
+  .hs-marker:hover .hs-label { opacity: 1; }
+
+  /* Lightbox */
+  #lightbox {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; pointer-events: all;
+  }
+  .lightbox-img { max-width: 90vw; max-height: 75vh; object-fit: contain; border-radius: 4px; }
+  .lightbox-controls { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+  .lightbox-counter { font-size: 12px; color: var(--text2); font-family: var(--mono); padding: 0 8px; }
+  .lightbox-title { font-size: 13px; color: var(--text2); margin-top: 8px; }
+  .lightbox-close { position: absolute; top: 16px; right: 16px; }
+
+  /* ══════════════════════════════════════════
+     EDITOR PAGE
+  ══════════════════════════════════════════ */
+  #page-editor { flex-direction: row; }
+
+  .editor-sidebar {
+    width: var(--sidebar); flex-shrink: 0;
+    background: var(--bg1); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .editor-sidebar-header {
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .editor-sidebar-header h2 { font-size: 13px; font-weight: 400; color: var(--text2); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .sidebar-tab {
+    flex: 1; padding: 9px; text-align: center; font-size: 11px; font-family: var(--mono);
+    text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+    color: var(--text3); border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .sidebar-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .sidebar-tab-panel { display: none; flex: 1; overflow-y: auto; padding: 10px; flex-direction: column; gap: 6px; }
+  .sidebar-tab-panel.active { display: flex; }
+
+  .scene-list-item {
+    padding: 8px 10px; border-radius: var(--r); border: 1px solid transparent;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 8px;
+  }
+  .scene-list-item:hover { background: var(--bg2); }
+  .scene-list-item.active { background: var(--bg2); border-color: var(--accent); }
+  .scene-list-item .scene-name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scene-list-item .scene-icon { font-size: 14px; flex-shrink: 0; }
+
+  .hs-list-item {
+    padding: 7px 10px; border-radius: var(--r); border: 1px solid transparent;
+    cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s;
+  }
+  .hs-list-item:hover { background: var(--bg2); }
+  .hs-list-item.selected { background: var(--bg2); border-color: var(--border2); }
+  .hs-list-item .hs-type-badge {
+    font-size: 10px; padding: 2px 5px; border-radius: 3px;
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
+  }
+  .hs-type-badge.scene { background: rgba(80,100,200,0.2); color: #8898ff; border: 1px solid rgba(80,100,200,0.3); }
+  .hs-type-badge.lightbox { background: rgba(200,169,110,0.2); color: var(--accent); border: 1px solid rgba(200,169,110,0.3); }
+
+  .settings-panel { padding: 10px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+
+  /* Editor main area */
+  .editor-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .editor-toolbar {
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: var(--bg1);
+  }
+  .editor-toolbar .spacer { flex: 1; }
+  .editor-canvas-wrap { flex: 1; position: relative; background: #000; overflow: hidden; }
+  #editor-canvas { display: block; width: 100%; height: 100%; }
+
+  /* Editor hotspot overlay */
+  .editor-hs-layer { position: absolute; inset: 0; pointer-events: none; }
+  .editor-hs-dot {
+    position: absolute; transform: translate(-50%, -50%);
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.7); background: rgba(0,0,0,0.5);
+    cursor: pointer; pointer-events: all; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; transition: all 0.15s;
+  }
+  .editor-hs-dot:hover, .editor-hs-dot.selected { border-color: var(--accent); background: rgba(200,169,110,0.3); }
+  .editor-crosshair {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .editor-crosshair::before, .editor-crosshair::after {
+    content: ''; position: absolute; background: rgba(255,255,255,0.2);
+  }
+  .editor-crosshair::before { width: 1px; height: 30px; }
+  .editor-crosshair::after { width: 30px; height: 1px; }
+
+  /* HS editor panel */
+  .hs-editor-panel {
+    position: absolute; right: 12px; bottom: 12px; width: 260px;
+    background: var(--bg1); border: 1px solid var(--border2); border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+    z-index: 10; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .hs-editor-panel h3 { font-size: 12px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text2); }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border2); border-radius: 10px;
+    padding: 40px 24px; text-align: center; cursor: pointer;
+    transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(200,169,110,0.05); }
+  .upload-zone .upload-icon { font-size: 36px; opacity: 0.5; }
+  .upload-zone p { color: var(--text2); font-size: 13px; line-height: 1.5; }
+  .upload-zone small { color: var(--text3); font-size: 11px; }
+
+  /* New tour modal */
+  #modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    display: flex; align-items: center; justify-content: center; z-index: 200;
+  }
+  .modal {
+    background: var(--bg1); border: 1px solid var(--border2); border-radius: 12px;
+    padding: 28px; width: min(440px, calc(100vw - 32px));
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .modal h2 { font-size: 18px; font-weight: 400; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(60px);
+    background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px;
+    padding: 10px 18px; font-size: 13px; color: var(--text);
+    z-index: 300; transition: transform 0.25s; white-space: nowrap;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--success); color: var(--success); }
+  #toast.error { border-color: var(--danger); color: var(--danger); }
+
+  /* Loading spinner */
+  .spinner {
+    width: 24px; height: 24px; border: 2px solid var(--border2);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .tours-header { padding: 24px 16px 16px; }
+    .tours-grid { padding: 16px; grid-template-columns: 1fr; }
+    .editor-sidebar { width: 220px; }
+    :root { --sidebar: 220px; }
+    .hs-editor-panel { width: calc(100vw - 24px); right: 12px; }
+  }
+
+  @media (max-width: 480px) {
+    #page-editor { flex-direction: column; }
+    .editor-sidebar {
+      width: 100%; height: 180px; flex-direction: row;
+      border-right: none; border-bottom: 1px solid var(--border);
+    }
+    .sidebar-tabs { flex-direction: column; border-bottom: none; border-right: 1px solid var(--border); width: 40px; }
+    .sidebar-tab { writing-mode: vertical-rl; padding: 10px 6px; border-bottom: none; border-right: 2px solid transparent; font-size: 9px; }
+    .sidebar-tab.active { border-bottom: none; border-right-color: var(--accent); }
+  }
+
+  /* Progress bar */
+  .progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+
+  /* Toggle switch */
+  .toggle { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    width: 36px; height: 20px; background: var(--bg3); border-radius: 10px;
+    border: 1px solid var(--border2); transition: all 0.2s; flex-shrink: 0;
+  }
+  .toggle input:checked + .toggle-track { background: var(--accent); border-color: var(--accent2); }
+  .toggle-thumb {
+    position: absolute; left: 3px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--text2); transition: all 0.2s;
+  }
+  .toggle input:checked ~ .toggle-thumb { left: 19px; background: #1a1408; }
+
+  /* Angle picker */
+  .angle-picker {
+    width: 80px; height: 80px; border-radius: 50%; background: var(--bg);
+    border: 1px solid var(--border2); position: relative; cursor: crosshair; flex-shrink: 0;
+  }
+  .angle-picker::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 2px; height: 34px; background: var(--accent);
+    transform-origin: bottom center; transform: translateX(-50%);
+  }
+  .angle-display { font-family: var(--mono); font-size: 11px; color: var(--text2); text-align: center; margin-top: 4px; }
+
+  /* Info badge */
+  .info-note {
+    background: rgba(200,169,110,0.08); border: 1px solid rgba(200,169,110,0.2);
+    border-radius: var(--r); padding: 8px 10px; font-size: 12px; color: var(--text2); line-height: 1.5;
+  }
+
+  /* Minimap */
+  #editor-minimap {
+    position: absolute;
+    bottom: 12px; left: 50%; transform: translateX(-50%);
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.5);
+    pointer-events: none;
+    opacity: 0.85;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  }
+  .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .gallery-thumb {
+    aspect-ratio: 1; background: var(--bg2); border-radius: 4px; overflow: hidden;
+    cursor: pointer; position: relative; transition: opacity 0.15s;
+  }
+  .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .gallery-thumb-del {
+    position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
+    background: rgba(0,0,0,0.7); border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 10px; cursor: pointer; color: var(--danger);
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .gallery-thumb:hover .gallery-thumb-del { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     TOURS LIST PAGE
+══════════════════════════════════════════════ -->
+<div id="page-tours" class="page">
+  <div class="tours-header">
+    <div>
+      <h1>Panorama <span>Tours</span></h1>
+    </div>
+    <div class="flex gap8">
+      <button class="btn primary" onclick="App.newTour()">+ New Tour</button>
+    </div>
+  </div>
+  <div id="tours-grid" class="tours-grid"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     VIEWER PAGE
+══════════════════════════════════════════════ -->
+<div id="page-viewer" class="page">
+  <div id="viewer-canvas-wrap">
+    <canvas id="viewer-canvas"></canvas>
+  </div>
+  <div class="viewer-hud">
+    <div class="viewer-top-bar">
+      <div>
+        <div class="viewer-title" id="viewer-tour-title"></div>
+        <div class="viewer-scene-name" id="viewer-scene-name"></div>
+      </div>
+      <div class="viewer-controls">
+        <div class="viewer-btn" id="btn-gyro" title="Gyroscope" ontouchstart="Viewer.gyroTouchStart(event)" ontouchend="Viewer.gyroTouchEnd(event)" onclick="Viewer.gyroClick(event)">⦿</div>
+        <div class="viewer-btn" id="btn-fullscreen" title="Fullscreen" onclick="Viewer.toggleFullscreen()">⛶</div>
+        <div class="viewer-btn" title="Edit Tour" onclick="App.editCurrentTour()">✏</div>
+        <div class="viewer-btn" title="Back to Tours" onclick="App.navigate('tours')">✕</div>
+      </div>
+    </div>
+    <div id="viewer-hs-container"></div>
+    <div id="lightbox" class="hidden">
+      <div class="viewer-btn lightbox-close" onclick="Viewer.closeLightbox()">✕</div>
+      <img id="lb-img" class="lightbox-img" src="" alt="">
+      <div class="lightbox-title" id="lb-title"></div>
+      <div class="lightbox-controls">
+        <button class="btn sm" onclick="Viewer.lbPrev()">‹ Prev</button>
+        <span class="lightbox-counter" id="lb-counter"></span>
+        <button class="btn sm" onclick="Viewer.lbNext()">Next ›</button>
+        <a id="lb-download" class="btn sm" download>↓</a>
+      </div>
+    </div>
+    <div class="viewer-bottom-bar">
+      <div class="scene-strip" id="viewer-scene-strip"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     EDITOR PAGE
+══════════════════════════════════════════════ -->
+<div id="page-editor" class="page">
+  <div class="editor-sidebar">
+    <div class="editor-sidebar-header">
+      <h2 id="editor-tour-name-display">Tour Editor</h2>
+      <button class="btn ghost icon-btn" onclick="App.navigate('tours')" title="Back">✕</button>
+    </div>
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" onclick="Editor.switchTab('scenes',this)">Scenes</div>
+      <div class="sidebar-tab" onclick="Editor.switchTab('hotspots',this)">Spots</div>
+      <div class="sidebar-tab" onclick="Editor.switchTab('settings',this)">Config</div>
+    </div>
+    <!-- Scenes tab -->
+    <div id="tab-scenes" class="sidebar-tab-panel active">
+      <button class="btn sm" style="align-self:flex-start" onclick="Editor.addScene()">+ Add Scene</button>
+      <div id="scene-list"></div>
+    </div>
+    <!-- Hotspots tab -->
+    <div id="tab-hotspots" class="sidebar-tab-panel">
+      <div id="hs-list"></div>
+      <div class="info-note" id="hs-hint">Click on the panorama to place a new hotspot.</div>
+    </div>
+    <!-- Settings tab -->
+    <div id="tab-settings" class="sidebar-tab-panel">
+      <div class="settings-panel" id="settings-panel"></div>
+    </div>
+  </div>
+
+  <div class="editor-main">
+    <!-- Toolbar -->
+    <div class="editor-toolbar">
+      <span id="editor-scene-label" class="mono small text2">No scene</span>
+      <div class="spacer"></div>
+      <button class="btn sm" id="btn-place-hs" onclick="Editor.toggleHsPlacement()">+ Place Hotspot</button>
+      <button class="btn sm primary" onclick="Editor.save()">Save</button>
+      <button class="btn sm" onclick="Editor.exportZip()">Export ZIP</button>
+    </div>
+
+    <!-- Canvas area -->
+    <div class="editor-canvas-wrap" id="editor-canvas-wrap">
+      <!-- Upload drop zone (shown when no scene) -->
+      <div id="editor-upload-zone" class="upload-zone" style="position:absolute;inset:0;z-index:5;margin:24px;height:auto;"
+        ondragover="Editor.onDragOver(event)" ondragleave="Editor.onDragLeave(event)" ondrop="Editor.onDrop(event)"
+        onclick="document.getElementById('file-input').click()">
+        <div class="upload-icon">⊕</div>
+        <p>Drop a panoramic image here, or click to browse</p>
+        <small>Browse all files — JPG and PNG accepted. Google Pixel Panorama &amp; equirectangular supported.</small>
+      </div>
+      <input type="file" id="file-input" style="display:none" onchange="Editor.onFileInput(event)">
+      <input type="file" id="gallery-file-input" multiple style="display:none" onchange="Editor.onGalleryFileInput(event)">
+
+      <canvas id="editor-canvas"></canvas>
+      <div class="editor-hs-layer" id="editor-hs-layer"></div>
+      <div class="editor-crosshair" id="editor-crosshair" style="display:none"></div>
+      <!-- Minimap -->
+      <canvas id="editor-minimap"></canvas>
+
+      <!-- Hotspot edit panel -->
+      <div id="hs-editor-panel" class="hs-editor-panel hidden">
+        <div class="flex justify-between align-center">
+          <h3 id="hs-panel-title">Hotspot</h3>
+          <button class="btn ghost icon-btn sm" onclick="Editor.closeHsPanel()">✕</button>
+        </div>
+        <div class="field">
+          <label>Label</label>
+          <input type="text" id="hs-label-input" placeholder="Hotspot label">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="hs-type-select" onchange="Editor.onHsTypeChange()">
+            <option value="scene">→ Go to Scene</option>
+            <option value="lightbox">⊞ Lightbox Gallery</option>
+          </select>
+        </div>
+        <div id="hs-scene-fields">
+          <div class="field">
+            <label>Target Scene</label>
+            <select id="hs-target-scene"></select>
+          </div>
+          <div class="field">
+            <label>Entry Yaw (°) — direction to face on arrival</label>
+            <input type="number" id="hs-entry-yaw" placeholder="0" step="1">
+          </div>
+          <div class="field">
+            <label>Entry Pitch (°)</label>
+            <input type="number" id="hs-entry-pitch" placeholder="0" step="1">
+          </div>
+        </div>
+        <div id="hs-lightbox-fields" class="hidden">
+          <div class="field">
+            <label>Gallery Images</label>
+            <div id="hs-gallery-grid" class="gallery-grid"></div>
+            <button class="btn sm" style="margin-top:6px" onclick="document.getElementById('gallery-file-input').click()">+ Add Images</button>
+          </div>
+        </div>
+        <div class="flex gap8" style="margin-top:4px">
+          <button class="btn sm primary grow" onclick="Editor.saveHotspot()">Save Hotspot</button>
+          <button class="btn sm danger-btn" onclick="Editor.deleteHotspot()">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     NEW TOUR MODAL
+══════════════════════════════════════════════ -->
+<div id="modal-overlay" class="hidden">
+  <div class="modal">
+    <h2>New Tour</h2>
+    <div class="field">
+      <label>Tour Name</label>
+      <input type="text" id="new-tour-name" placeholder="e.g. My Garden, House Tour…">
+    </div>
+    <div class="field">
+      <label>Description (optional)</label>
+      <textarea id="new-tour-desc" rows="2" placeholder="A short description"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="App.closeModal()">Cancel</button>
+      <button class="btn primary" onclick="App.createTour()">Create Tour</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Three.js + JSZip -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script>
+'use strict';
+
+/* ════════════════════════════════════════════════════════
+   UTILITIES
+════════════════════════════════════════════════════════ */
+function $(id) { return document.getElementById(id); }
+function toast(msg, type='', dur=2500) {
+  const t = $('toast'); t.textContent = msg;
+  t.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(t._t); t._t = setTimeout(() => t.className = '', dur);
+}
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function deg(r) { return r * 180 / Math.PI; }
+function rad(d) { return d * Math.PI / 180; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+/* ════════════════════════════════════════════════════════
+   XMP / EXIF PARSER — GPano tags for partial equirectangular
+════════════════════════════════════════════════════════ */
+const XMP = {
+  parse(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    // Convert bytes to string to search for XMP
+    let xmpStr = '';
+    const decoder = new TextDecoder('utf-8', {fatal: false});
+    // XMP data is in the JPEG APP1 segment, search for it
+    const str = decoder.decode(bytes);
+    const xmpStart = str.indexOf('<x:xmpmeta');
+    const xmpEnd = str.indexOf('</x:xmpmeta>');
+    if (xmpStart !== -1 && xmpEnd !== -1) {
+      xmpStr = str.slice(xmpStart, xmpEnd + 12);
+    }
+    if (!xmpStr) return null;
+
+    const get = (tag) => {
+      // Try attribute format: GPano:Tag="value"
+      let re = new RegExp(tag + '[=:]\\s*["\']([^"\']+)["\']');
+      let m = xmpStr.match(re);
+      if (m) return parseFloat(m[1]);
+      // Try element format: <GPano:Tag>value</GPano:Tag>
+      re = new RegExp('<[^>]*' + tag + '[^>]*>([^<]+)<');
+      m = xmpStr.match(re);
+      if (m) return parseFloat(m[1]);
+      return null;
+    };
+
+    const info = {
+      fullWidth: get('GPano:FullPanoWidthPixels'),
+      fullHeight: get('GPano:FullPanoHeightPixels'),
+      croppedWidth: get('GPano:CroppedAreaImageWidthPixels'),
+      croppedHeight: get('GPano:CroppedAreaImageHeightPixels'),
+      croppedLeft: get('GPano:CroppedAreaLeftPixels'),
+      croppedTop: get('GPano:CroppedAreaTopPixels'),
+      initialViewHeadingDegrees: get('GPano:InitialViewHeadingDegrees'),
+      initialHorizontalFOVDegrees: get('GPano:InitialHorizontalFOVDegrees'),
+    };
+
+    // Validate we got useful data
+    if (!info.fullWidth || !info.croppedWidth) return null;
+
+    // Calculate coverage fractions
+    info.hFovDeg = (info.croppedWidth / info.fullWidth) * 360;
+    info.vFovDeg = (info.croppedHeight / info.fullHeight) * 180;
+    info.hOffsetDeg = (info.croppedLeft / info.fullWidth) * 360;
+    info.vOffsetDeg = (info.croppedTop / info.fullHeight) * 180 - 90;
+
+    return info;
+  }
+};
+
+/* ════════════════════════════════════════════════════════
+   STORAGE — localStorage-based tour persistence
+════════════════════════════════════════════════════════ */
+const Store = {
+  KEY: 'panorama_tours_v1',
+  get() { try { return JSON.parse(localStorage.getItem(this.KEY) || '{}'); } catch { return {}; } },
+  set(data) { localStorage.setItem(this.KEY, JSON.stringify(data)); },
+  getTour(id) { return this.get()[id] || null; },
+  saveTour(id, tour) {
+    const all = this.get(); all[id] = tour; this.set(all);
+  },
+  deleteTour(id) {
+    const all = this.get(); delete all[id]; this.set(all);
+  },
+  listTours() {
+    const all = this.get();
+    return Object.entries(all).map(([id, t]) => ({id, ...t}));
+  },
+  // Asset storage — store as data URLs
+  ASSET_KEY: 'panorama_assets_v1',
+  getAssets() { try { return JSON.parse(localStorage.getItem(this.ASSET_KEY) || '{}'); } catch { return {}; } },
+  getAsset(key) { return this.getAssets()[key] || null; },
+  saveAsset(key, dataUrl) {
+    const a = this.getAssets(); a[key] = dataUrl;
+    try { localStorage.setItem(this.ASSET_KEY, JSON.stringify(a)); return true; }
+    catch(e) { console.warn('Asset storage full:', e); return false; }
+  },
+  deleteAssetsByPrefix(prefix) {
+    const a = this.getAssets();
+    Object.keys(a).filter(k => k.startsWith(prefix)).forEach(k => delete a[k]);
+    localStorage.setItem(this.ASSET_KEY, JSON.stringify(a));
+  }
+};
+
+/* ════════════════════════════════════════════════════════
+   DEFAULT TOUR STRUCTURE
+════════════════════════════════════════════════════════ */
+function makeTour(name, desc='') {
+  return {
+    id: 'tour_' + Date.now(),
+    name,
+    description: desc,
+    defaultScene: null,
+    scenes: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+function makeScene(name, imagePath) {
+  return {
+    id: 'scene_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    name,
+    image: imagePath,
+    hFovDeg: 360,
+    vFovDeg: 120,
+    hOffsetDeg: 0,
+    vOffsetDeg: -30,
+    initialYaw: 0,
+    initialPitch: 0,
+    hotspots: [],
+  };
+}
+function makeHotspot(yaw, pitch, type='scene') {
+  return {
+    id: 'hs_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    type,
+    label: type === 'scene' ? 'Go to scene' : 'View gallery',
+    yaw, pitch,
+    targetScene: null,
+    entryYaw: 0,
+    entryPitch: 0,
+    gallery: [], // [{src, caption}]
+  };
+}
+
+/* ════════════════════════════════════════════════════════
+   THREE.JS PANORAMA RENDERER (shared base)
+════════════════════════════════════════════════════════ */
+class PanoRenderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+    this.camera.position.set(0, 0, 0.01);
+    this.sphere = null;
+    this.texture = null;
+    this.yaw = 0; // degrees
+    this.pitch = 0; // degrees
+    this.fov = 75;
+    this.minFov = 30; this.maxFov = 110;
+    this.pitchMin = -85; this.pitchMax = 85;
+    this.gpano = null;
+    this._raf = null;
+    this._resObs = new ResizeObserver(() => this.resize());
+    this._resObs.observe(canvas.parentElement || canvas);
+    this.resize();
+    this.startRender();
+  }
+
+  resize() {
+    const w = this.canvas.clientWidth || 1;
+    const h = this.canvas.clientHeight || 1;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  async loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      // crossOrigin only needed for actual http URLs, not data: or blob: URIs
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load image: ' + src.slice(0, 80)));
+      img.src = src;
+    });
+  }
+
+  buildSphere(gpano) {
+    if (this.sphere) {
+      this.scene.remove(this.sphere);
+      this.sphere.geometry.dispose();
+      this.sphere.material.dispose();
+    }
+    this.gpano = gpano;
+
+    // View from inside: use BackSide — no geometry flipping needed.
+    const geo = new THREE.SphereGeometry(500, 80, 40);
+
+    // Remap UVs for partial equirectangular (e.g. Google Pixel panorama)
+    if (gpano && gpano.hFovDeg < 358) {
+      const hFrac = gpano.hFovDeg / 360;
+      const vFrac = gpano.vFovDeg / 180;
+      const hOff  = gpano.hOffsetDeg / 360;
+      // SphereGeometry V=0→south pole, V=1→north pole.
+      // vOffsetDeg is the elevation of the bottom edge in degrees (-90=south,+90=north).
+      // Convert to UV: bottom edge UV = 1 - (vOffsetDeg+90)/180, top = bottom + vFrac
+      const vBottom = 1 - (gpano.vOffsetDeg + 90) / 180;
+      const vTop    = vBottom - vFrac; // V increases downward in sphere UV
+
+      const uvs = geo.attributes.uv;
+      for (let i = 0; i < uvs.count; i++) {
+        let u = uvs.getX(i);
+        let v = uvs.getY(i); // 0=south,1=north from SphereGeometry
+        // Mirror U because BackSide reverses horizontal
+        u = 1 - u;
+        u = hOff + u * hFrac;
+        v = vTop + v * vFrac;
+        uvs.setXY(i, u, v);
+      }
+      uvs.needsUpdate = true;
+    } else {
+      // Full 360: just mirror U for BackSide
+      const uvs = geo.attributes.uv;
+      for (let i = 0; i < uvs.count; i++) {
+        uvs.setX(i, 1 - uvs.getX(i));
+      }
+      uvs.needsUpdate = true;
+    }
+
+    if (this.texture) {
+      this.texture.wrapS = THREE.RepeatWrapping;
+      this.texture.needsUpdate = true;
+    }
+
+    const mat = new THREE.MeshBasicMaterial({
+      map: this.texture,
+      side: THREE.BackSide,
+    });
+    this.sphere = new THREE.Mesh(geo, mat);
+    this.scene.add(this.sphere);
+  }
+
+  async loadScene(scene, assetResolver) {
+    if (this.texture) { this.texture.dispose(); this.texture = null; }
+    const src = assetResolver(scene.image);
+    const img = await this.loadImage(src);
+    this.texture = new THREE.Texture(img);
+    this.texture.wrapS = THREE.RepeatWrapping;
+    this.texture.needsUpdate = true;
+
+    let gpano = null;
+    if (scene.hFovDeg && scene.hFovDeg < 358) {
+      gpano = {
+        hFovDeg: scene.hFovDeg,
+        vFovDeg: scene.vFovDeg,
+        hOffsetDeg: scene.hOffsetDeg || 0,
+        vOffsetDeg: scene.vOffsetDeg || -30,
+      };
+    }
+    this.buildSphere(gpano);
+
+    this.yaw = scene.initialYaw || 0;
+    this.pitch = scene.initialPitch || 0;
+    this.updateCamera();
+  }
+
+  updateCamera() {
+    this.pitch = clamp(this.pitch, this.pitchMin, this.pitchMax);
+    this.camera.setRotationFromEuler(new THREE.Euler(
+      rad(this.pitch), rad(-this.yaw), 0, 'YXZ'
+    ));
+    this.camera.fov = this.fov;
+    this.camera.updateProjectionMatrix();
+  }
+
+  startRender() {
+    const loop = () => {
+      this._raf = requestAnimationFrame(loop);
+      this.onFrame?.();
+      this.renderer.render(this.scene, this.camera);
+    };
+    loop();
+  }
+
+  stopRender() {
+    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+  }
+
+  dispose() {
+    this.stopRender();
+    this._resObs.disconnect();
+    if (this.texture) this.texture.dispose();
+    if (this.sphere) { this.sphere.geometry.dispose(); this.sphere.material.dispose(); }
+    this.renderer.dispose();
+  }
+
+  // Project 3D direction to canvas 2D position
+  // Returns {x, y, visible} in pixel coords
+  project(yawDeg, pitchDeg) {
+    const dir = new THREE.Vector3();
+    const euler = new THREE.Euler(rad(pitchDeg), rad(-yawDeg), 0, 'YXZ');
+    dir.set(0, 0, -1).applyEuler(euler);
+
+    // Transform into camera space
+    const camDir = dir.clone().applyMatrix4(new THREE.Matrix4().copy(this.camera.matrixWorldInverse).setPosition(0,0,0));
+    // Project
+    const projected = camDir.clone().project(this.camera);
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    return {
+      x: (projected.x * 0.5 + 0.5) * w,
+      y: (-projected.y * 0.5 + 0.5) * h,
+      visible: projected.z < 1,
+    };
+  }
+
+  // Unproject canvas pixel to yaw/pitch
+  unproject(px, py) {
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    const ndc = new THREE.Vector3(
+      (px / w) * 2 - 1,
+      -(py / h) * 2 + 1,
+      0.5
+    );
+    ndc.unproject(this.camera);
+    ndc.sub(this.camera.position).normalize();
+    const pitchDeg = deg(Math.asin(clamp(ndc.y, -1, 1)));
+    const yawDeg = -deg(Math.atan2(ndc.x, -ndc.z));
+    return { yaw: yawDeg, pitch: pitchDeg };
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   VIEWER
+════════════════════════════════════════════════════════ */
+const Viewer = (() => {
+  let renderer = null;
+  let tour = null, currentScene = null;
+  let dragging = false, lastX = 0, lastY = 0;
+  let gyroActive = false, gyroLatched = false, gyroHeld = false;
+  let gyroAlpha0 = null, gyroBeta0 = null, gyroGamma0 = null;
+  let lbImages = [], lbIndex = 0;
+
+  function init() {
+    const canvas = $('viewer-canvas');
+    renderer = new PanoRenderer(canvas);
+    renderer.onFrame = animateHotspots;
+
+    // Touch / Mouse drag
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('wheel', onWheel, {passive: false});
+    // Prevent context menu
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    // Device orientation
+    window.addEventListener('deviceorientation', onOrientation);
+  }
+
+  function load(tourId) {
+    tour = Store.getTour(tourId);
+    if (!tour) { toast('Tour not found', 'error'); return; }
+    $('viewer-tour-title').textContent = tour.name;
+    buildSceneStrip();
+    const first = tour.defaultScene
+      ? tour.scenes.find(s => s.id === tour.defaultScene)
+      : tour.scenes[0];
+    if (first) loadScene(first);
+  }
+
+  function assetSrc(path) {
+    // Try localStorage first (editor-created tours)
+    const stored = Store.getAsset(path);
+    if (stored) return stored;
+    // Fall back to URL (served from server)
+    return 'tours/' + path;
+  }
+
+  async function loadScene(scene, entryYaw, entryPitch) {
+    currentScene = scene;
+    $('viewer-scene-name').textContent = scene.name;
+    // Update strip
+    document.querySelectorAll('.scene-chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.id === scene.id);
+    });
+    await renderer.loadScene(scene, assetSrc);
+    if (entryYaw !== undefined) renderer.yaw = entryYaw;
+    if (entryPitch !== undefined) renderer.pitch = entryPitch;
+    renderer.updateCamera();
+    renderHotspots();
+  }
+
+  function buildSceneStrip() {
+    const strip = $('viewer-scene-strip');
+    strip.innerHTML = '';
+    (tour.scenes || []).forEach(s => {
+      const c = document.createElement('div');
+      c.className = 'scene-chip' + (s.id === currentScene?.id ? ' active' : '');
+      c.dataset.id = s.id;
+      c.textContent = s.name;
+      c.onclick = () => loadScene(s);
+      strip.appendChild(c);
+    });
+  }
+
+  function renderHotspots() {
+    const con = $('viewer-hs-container');
+    con.innerHTML = '';
+    if (!currentScene) return;
+    (currentScene.hotspots || []).forEach(hs => {
+      const el = document.createElement('div');
+      el.className = 'hs-marker';
+      el.dataset.id = hs.id;
+      const icon = hs.type === 'lightbox' ? '⊞' : '→';
+      el.innerHTML = `<div class="hs-dot">${icon}</div><div class="hs-label">${hs.label || ''}</div>`;
+      el.addEventListener('click', () => onHotspotClick(hs));
+      con.appendChild(el);
+    });
+  }
+
+  function animateHotspots() {
+    if (!currentScene) return;
+    const con = $('viewer-hs-container');
+    (currentScene.hotspots || []).forEach(hs => {
+      const el = con.querySelector(`[data-id="${hs.id}"]`);
+      if (!el) return;
+      const p = renderer.project(hs.yaw, hs.pitch);
+      el.style.left = p.x + 'px';
+      el.style.top = p.y + 'px';
+      el.style.display = p.visible ? 'flex' : 'none';
+    });
+  }
+
+  function onHotspotClick(hs) {
+    if (hs.type === 'scene' && hs.targetScene) {
+      const target = (tour.scenes || []).find(s => s.id === hs.targetScene);
+      if (target) loadScene(target, hs.entryYaw || 0, hs.entryPitch || 0);
+    } else if (hs.type === 'lightbox' && hs.gallery?.length) {
+      openLightbox(hs.gallery, 0);
+    }
+  }
+
+  function openLightbox(images, idx) {
+    lbImages = images; lbIndex = idx;
+    $('lightbox').classList.remove('hidden');
+    showLbImage();
+  }
+  function showLbImage() {
+    const img = lbImages[lbIndex];
+    $('lb-img').src = assetSrc(img.src);
+    $('lb-title').textContent = img.caption || '';
+    $('lb-counter').textContent = (lbIndex + 1) + ' / ' + lbImages.length;
+    $('lb-download').href = assetSrc(img.src);
+    $('lb-download').download = img.src.split('/').pop();
+  }
+  function lbPrev() { lbIndex = (lbIndex - 1 + lbImages.length) % lbImages.length; showLbImage(); }
+  function lbNext() { lbIndex = (lbIndex + 1) % lbImages.length; showLbImage(); }
+  function closeLightbox() { $('lightbox').classList.add('hidden'); }
+
+  // ── Drag ──
+  function onDown(e) {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    renderer.yaw += dx * 0.18;
+    renderer.pitch += dy * 0.18;
+    renderer.updateCamera();
+  }
+  function onUp() { dragging = false; }
+  function onWheel(e) {
+    e.preventDefault();
+    renderer.fov = clamp(renderer.fov + e.deltaY * 0.05, renderer.minFov, renderer.maxFov);
+    renderer.updateCamera();
+  }
+
+  // ── Gyro ──
+  async function requestGyroPermission() {
+    // iOS 13+ requires explicit permission for DeviceOrientationEvent
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const result = await DeviceOrientationEvent.requestPermission();
+        if (result !== 'granted') {
+          toast('Motion permission denied — gyro unavailable', 'error', 3500);
+          return false;
+        }
+      } catch(err) {
+        toast('Could not request motion permission', 'error', 3000);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function activateGyro() {
+    gyroActive = true; gyroAlpha0 = null;
+    $('btn-gyro').classList.add('active');
+  }
+  function deactivateGyro() {
+    gyroActive = false;
+    $('btn-gyro').classList.toggle('active', gyroLatched);
+  }
+
+  async function gyroClick(e) {
+    e.stopPropagation();
+    if (gyroHeld) return; // touch-hold in progress, ignore synthetic click
+    if (!gyroLatched) {
+      // Turning on — request permission first if needed
+      const allowed = await requestGyroPermission();
+      if (!allowed) return;
+      gyroLatched = true;
+      activateGyro();
+      toast('Gyro on', '', 1200);
+    } else {
+      gyroLatched = false;
+      gyroActive = false;
+      deactivateGyro();
+      toast('Gyro off', '', 1200);
+    }
+  }
+  async function gyroTouchStart(e) {
+    gyroHeld = true;
+    if (!gyroLatched) {
+      const allowed = await requestGyroPermission();
+      if (!allowed) { gyroHeld = false; return; }
+    }
+    activateGyro();
+  }
+  function gyroTouchEnd(e) {
+    gyroHeld = false;
+    if (!gyroLatched) deactivateGyro();
+  }
+  function onOrientation(e) {
+    if (!gyroActive) return;
+    const a = e.alpha, b = e.beta, g = e.gamma;
+    if (a === null) return;
+    if (gyroAlpha0 === null) { gyroAlpha0 = a; gyroBeta0 = b; gyroGamma0 = g; return; }
+    // Compute delta
+    let da = a - gyroAlpha0;
+    if (da > 180) da -= 360; if (da < -180) da += 360;
+    const db = b - gyroBeta0;
+    renderer.yaw = -da * 0.8;
+    renderer.pitch = clamp(-db * 0.5, renderer.pitchMin, renderer.pitchMax);
+    renderer.updateCamera();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      $('page-viewer').requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  }
+
+  function destroy() {
+    if (renderer) { renderer.dispose(); renderer = null; }
+    tour = null; currentScene = null;
+  }
+
+  function currentTourId() { return tour?.id; }
+
+  return {
+    init, load, destroy, currentTourId,
+    gyroClick, gyroTouchStart, gyroTouchEnd,
+    lbPrev, lbNext, closeLightbox,
+    toggleFullscreen,
+  };
+})();
+
+/* ════════════════════════════════════════════════════════
+   EDITOR
+════════════════════════════════════════════════════════ */
+const Editor = (() => {
+  let renderer = null;
+  let tour = null;
+  let currentScene = null;
+  let selectedHsId = null;
+  let placingHs = false;
+  let isDragging = false, lastX = 0, lastY = 0;
+  let pendingGalleryHsId = null;
+
+  // Gallery storage: hsId -> [{src (asset key), caption, dataUrl}]
+  const pendingGalleries = {};
+
+  function init() {
+    const canvas = $('editor-canvas');
+    renderer = new PanoRenderer(canvas);
+    renderer.onFrame = updateHsDots;
+
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('wheel', onWheel, {passive: false});
+    canvas.addEventListener('click', onCanvasClick);
+  }
+
+  function load(tourId) {
+    if (tourId === '__new__') {
+      // Handled by modal
+      return;
+    }
+    tour = Store.getTour(tourId);
+    if (!tour) { toast('Tour not found', 'error'); return; }
+    $('editor-tour-name-display').textContent = tour.name;
+    renderSceneList();
+    const first = tour.scenes[0];
+    if (first) loadScene(first);
+    else showUploadZone(true);
+  }
+
+  function setTour(t) {
+    tour = t;
+    Store.saveTour(t.id, t);
+    $('editor-tour-name-display').textContent = t.name;
+    renderSceneList();
+    showUploadZone(true);
+  }
+
+  function assetSrc(path) {
+    const stored = Store.getAsset(path);
+    if (stored) return stored;
+    return 'tours/' + path;
+  }
+
+  async function loadScene(scene) {
+    currentScene = scene;
+    $('editor-scene-label').textContent = scene.name;
+    showUploadZone(false);
+    // Force renderer resize now that canvas is visible
+    renderer.resize();
+    await renderer.loadScene(scene, assetSrc);
+    // Load minimap image
+    initMinimap(assetSrc(scene.image));
+    renderer.yaw = scene.initialYaw || 0;
+    renderer.pitch = scene.initialPitch || 0;
+    renderer.updateCamera();
+    renderSceneList();
+    renderHsList();
+    renderSettingsPanel();
+    updateHsDots();
+    closeHsPanel();
+  }
+
+  function showUploadZone(show) {
+    $('editor-upload-zone').style.display = show ? 'flex' : 'none';
+    $('editor-canvas').style.display = show ? 'none' : 'block';
+    $('editor-hs-layer').style.display = show ? 'none' : 'block';
+  }
+
+  // ── Scene List ──
+  function renderSceneList() {
+    const list = $('scene-list');
+    list.innerHTML = '';
+    (tour?.scenes || []).forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'scene-list-item' + (s.id === currentScene?.id ? ' active' : '');
+      el.innerHTML = `
+        <span class="scene-icon">⬡</span>
+        <span class="scene-name">${s.name}</span>
+        <button class="btn ghost icon-btn sm" title="Delete" onclick="Editor.deleteScene('${s.id}', event)">✕</button>
+      `;
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        loadScene(s);
+      });
+      list.appendChild(el);
+    });
+  }
+
+  function addScene() {
+    // Show upload zone
+    currentScene = null;
+    showUploadZone(true);
+    $('editor-scene-label').textContent = 'New scene — upload image';
+  }
+
+  function deleteScene(id, e) {
+    e.stopPropagation();
+    if (!tour) return;
+    if (!confirm('Delete this scene?')) return;
+    tour.scenes = tour.scenes.filter(s => s.id !== id);
+    if (tour.defaultScene === id) tour.defaultScene = tour.scenes[0]?.id || null;
+    Store.saveTour(tour.id, tour);
+    if (currentScene?.id === id) {
+      currentScene = null;
+      if (tour.scenes.length) loadScene(tour.scenes[0]);
+      else showUploadZone(true);
+    }
+    renderSceneList();
+    renderHsList();
+    toast('Scene deleted');
+  }
+
+  // ── Hotspot List ──
+  function renderHsList() {
+    const list = $('hs-list');
+    list.innerHTML = '';
+    (currentScene?.hotspots || []).forEach(hs => {
+      const el = document.createElement('div');
+      el.className = 'hs-list-item' + (hs.id === selectedHsId ? ' selected' : '');
+      const badge = hs.type === 'lightbox'
+        ? '<span class="hs-type-badge lightbox">Gallery</span>'
+        : '<span class="hs-type-badge scene">Scene</span>';
+      el.innerHTML = `${badge}<span class="grow" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${hs.label || '(unlabeled)'}</span>`;
+      el.onclick = () => selectHotspot(hs.id);
+      list.appendChild(el);
+    });
+  }
+
+  // ── Settings ──
+  function renderSettingsPanel() {
+    const panel = $('settings-panel');
+    if (!currentScene) { panel.innerHTML = '<p class="text3 small">No scene selected.</p>'; return; }
+    const s = currentScene;
+    panel.innerHTML = `
+      <div class="field">
+        <label>Scene Name</label>
+        <input type="text" id="cfg-name" value="${s.name}">
+      </div>
+      <div class="divider"></div>
+      <div class="info-note">Panorama coverage — adjust if image appears cropped or distorted.</div>
+      <div class="field-row">
+        <div class="field"><label>H-FOV (°)</label><input type="number" id="cfg-hfov" value="${s.hFovDeg}" min="1" max="360" step="1"></div>
+        <div class="field"><label>V-FOV (°)</label><input type="number" id="cfg-vfov" value="${s.vFovDeg}" min="1" max="180" step="1"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>H-Offset (°)</label><input type="number" id="cfg-hoffset" value="${s.hOffsetDeg||0}" min="-180" max="180" step="1"></div>
+        <div class="field"><label>V-Offset (°)</label><input type="number" id="cfg-voffset" value="${s.vOffsetDeg||0}" min="-90" max="90" step="1"></div>
+      </div>
+      <div class="divider"></div>
+      <div class="field"><label>Initial Yaw (°)</label><input type="number" id="cfg-iyaw" value="${s.initialYaw||0}" step="1"></div>
+      <div class="field"><label>Initial Pitch (°)</label><input type="number" id="cfg-ipitch" value="${s.initialPitch||0}" step="1"></div>
+      <button class="btn sm primary" onclick="Editor.applySettings()">Apply</button>
+      <div class="divider"></div>
+      <div class="field">
+        <label>Set as default scene</label>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-default" ${tour.defaultScene === s.id ? 'checked' : ''} onchange="Editor.setDefault(this.checked)">
+          <div class="toggle-track"></div><div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <button class="btn sm" onclick="Editor.useCurrentAngleAsInitial()">📐 Use current view as initial</button>
+    `;
+  }
+
+  function applySettings() {
+    if (!currentScene) return;
+    const s = currentScene;
+    s.name = $('cfg-name').value.trim() || s.name;
+    s.hFovDeg = parseFloat($('cfg-hfov').value) || 360;
+    s.vFovDeg = parseFloat($('cfg-vfov').value) || 120;
+    s.hOffsetDeg = parseFloat($('cfg-hoffset').value) || 0;
+    s.vOffsetDeg = parseFloat($('cfg-voffset').value) || 0;
+    s.initialYaw = parseFloat($('cfg-iyaw').value) || 0;
+    s.initialPitch = parseFloat($('cfg-ipitch').value) || 0;
+    // Rebuild sphere with new params
+    renderer.gpano = { hFovDeg: s.hFovDeg, vFovDeg: s.vFovDeg, hOffsetDeg: s.hOffsetDeg, vOffsetDeg: s.vOffsetDeg };
+    // Reload to apply UV changes
+    renderer.loadScene(s, assetSrc).then(() => {
+      renderer.yaw = s.initialYaw; renderer.pitch = s.initialPitch;
+      renderer.updateCamera();
+    });
+    syncScene();
+    renderSceneList();
+    toast('Settings applied');
+  }
+
+  function setDefault(checked) {
+    if (!tour || !currentScene) return;
+    tour.defaultScene = checked ? currentScene.id : null;
+    syncScene();
+  }
+
+  function useCurrentAngleAsInitial() {
+    if (!currentScene || !renderer) return;
+    currentScene.initialYaw = Math.round(renderer.yaw);
+    currentScene.initialPitch = Math.round(renderer.pitch);
+    renderSettingsPanel();
+    syncScene();
+    toast('Initial angle set');
+  }
+
+  // ── Hotspot interaction ──
+  function toggleHsPlacement() {
+    placingHs = !placingHs;
+    $('btn-place-hs').textContent = placingHs ? '✕ Cancel' : '+ Place Hotspot';
+    $('editor-crosshair').style.display = placingHs ? 'flex' : 'none';
+    $('editor-canvas').style.cursor = placingHs ? 'crosshair' : 'grab';
+  }
+
+  function onCanvasClick(e) {
+    if (isDragging) return;
+    if (!currentScene) return;
+    if (!placingHs) {
+      // Check if clicking away from panel — deselect
+      return;
+    }
+    const rect = renderer.canvas.getBoundingClientRect();
+    const { yaw, pitch } = renderer.unproject(e.clientX - rect.left, e.clientY - rect.top);
+    const hs = makeHotspot(Math.round(yaw), Math.round(pitch));
+    currentScene.hotspots.push(hs);
+    toggleHsPlacement();
+    selectHotspot(hs.id);
+    updateHsDots();
+    renderHsList();
+    syncScene();
+  }
+
+  function selectHotspot(id) {
+    selectedHsId = id;
+    const hs = (currentScene?.hotspots || []).find(h => h.id === id);
+    if (!hs) { closeHsPanel(); return; }
+    openHsPanel(hs);
+    renderHsList();
+    updateHsDots();
+  }
+
+  function openHsPanel(hs) {
+    const panel = $('hs-editor-panel');
+    panel.classList.remove('hidden');
+    $('hs-panel-title').textContent = hs.type === 'lightbox' ? 'Gallery Hotspot' : 'Scene Hotspot';
+    $('hs-label-input').value = hs.label || '';
+    $('hs-type-select').value = hs.type;
+
+    // Populate target scene dropdown
+    const sel = $('hs-target-scene');
+    sel.innerHTML = '<option value="">— select scene —</option>';
+    (tour.scenes || []).filter(s => s.id !== currentScene?.id).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.name;
+      if (s.id === hs.targetScene) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    $('hs-entry-yaw').value = hs.entryYaw || 0;
+    $('hs-entry-pitch').value = hs.entryPitch || 0;
+
+    // Gallery
+    renderGalleryGrid(hs);
+
+    onHsTypeChange();
+  }
+
+  function closeHsPanel() {
+    $('hs-editor-panel').classList.add('hidden');
+    selectedHsId = null;
+    renderHsList();
+    updateHsDots();
+  }
+
+  function onHsTypeChange() {
+    const type = $('hs-type-select').value;
+    $('hs-scene-fields').style.display = type === 'scene' ? '' : 'none';
+    $('hs-lightbox-fields').style.display = type === 'lightbox' ? '' : 'none';
+  }
+
+  function renderGalleryGrid(hs) {
+    const grid = $('hs-gallery-grid');
+    grid.innerHTML = '';
+    (hs.gallery || []).forEach((img, i) => {
+      const thumb = document.createElement('div');
+      thumb.className = 'gallery-thumb';
+      const src = Store.getAsset(img.src) || ('tours/' + img.src);
+      thumb.innerHTML = `<img src="${src}" alt=""><div class="gallery-thumb-del" onclick="Editor.removeGalleryImg('${hs.id}',${i})">✕</div>`;
+      grid.appendChild(thumb);
+    });
+    pendingGalleryHsId = hs.id;
+  }
+
+  function removeGalleryImg(hsId, idx) {
+    const hs = (currentScene?.hotspots || []).find(h => h.id === hsId);
+    if (!hs) return;
+    hs.gallery.splice(idx, 1);
+    renderGalleryGrid(hs);
+    syncScene();
+  }
+
+  function saveHotspot() {
+    if (!selectedHsId || !currentScene) return;
+    const hs = (currentScene.hotspots || []).find(h => h.id === selectedHsId);
+    if (!hs) return;
+    hs.label = $('hs-label-input').value.trim() || hs.label;
+    hs.type = $('hs-type-select').value;
+    if (hs.type === 'scene') {
+      hs.targetScene = $('hs-target-scene').value || null;
+      hs.entryYaw = parseFloat($('hs-entry-yaw').value) || 0;
+      hs.entryPitch = parseFloat($('hs-entry-pitch').value) || 0;
+    }
+    syncScene();
+    closeHsPanel();
+    renderHsList();
+    toast('Hotspot saved', 'success');
+  }
+
+  function deleteHotspot() {
+    if (!selectedHsId || !currentScene) return;
+    currentScene.hotspots = currentScene.hotspots.filter(h => h.id !== selectedHsId);
+    closeHsPanel();
+    updateHsDots();
+    renderHsList();
+    syncScene();
+    toast('Hotspot deleted');
+  }
+
+  // ── Minimap ──
+  let minimapImg = null; // HTMLImageElement of the flat panorama
+
+  function initMinimap(src) {
+    const img = new Image();
+    img.onload = () => { minimapImg = img; drawMinimap(); };
+    img.src = src;
+  }
+
+  function drawMinimap() {
+    const mc = $('editor-minimap');
+    if (!mc || !minimapImg || !renderer) return;
+
+    // Size: up to 320px wide, proportional height, max 90px tall
+    const aspect = minimapImg.naturalWidth / minimapImg.naturalHeight;
+    const maxW = Math.min(320, (renderer.canvas.clientWidth || 400) * 0.5);
+    const maxH = 90;
+    let mw = maxW, mh = maxW / aspect;
+    if (mh > maxH) { mh = maxH; mw = mh * aspect; }
+    mw = Math.round(mw); mh = Math.round(mh);
+
+    if (mc.width !== mw || mc.height !== mh) {
+      mc.width = mw; mc.height = mh;
+      mc.style.width = mw + 'px'; mc.style.height = mh + 'px';
+    }
+
+    const ctx = mc.getContext('2d');
+    ctx.clearRect(0, 0, mw, mh);
+
+    // Draw the flat panorama image
+    ctx.drawImage(minimapImg, 0, 0, mw, mh);
+
+    // Dim uncovered area (for partial panos)
+    const gpano = renderer.gpano;
+    if (gpano && gpano.hFovDeg < 358) {
+      const hFrac = gpano.hFovDeg / 360;
+      const vFrac = gpano.vFovDeg / 180;
+      const hOff  = gpano.hOffsetDeg / 360;
+      const vOff  = 1 - (gpano.vOffsetDeg + 90) / 180 - vFrac;
+      // Dim everything outside the covered rectangle
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      const px = hOff * mw, py = vOff * mh, pw = hFrac * mw, ph = vFrac * mh;
+      // top strip
+      ctx.fillRect(0, 0, mw, py);
+      // bottom strip
+      ctx.fillRect(0, py + ph, mw, mh - py - ph);
+      // left strip
+      ctx.fillRect(0, py, px, ph);
+      // right strip
+      ctx.fillRect(px + pw, py, mw - px - pw, ph);
+    }
+
+    // Draw viewport rectangle
+    // The viewport covers ±halfFovH horizontally and ±halfFovV vertically.
+    const fovH = renderer.fov * (renderer.canvas.clientWidth / (renderer.canvas.clientHeight || 1));
+    const fovV = renderer.fov;
+
+    // Normalise yaw to 0–360
+    let yaw = ((renderer.yaw % 360) + 360) % 360;
+    const pitch = renderer.pitch; // -90 to +90
+
+    // Convert to UV
+    const cx = (yaw / 360) * mw;
+    const cy = (1 - (pitch + 90) / 180) * mh;
+    const hw = (fovH / 360) * mw;
+    const hh = (fovV / 180) * mh;
+
+    const rx = cx - hw / 2, ry = cy - hh / 2;
+    const rw = hw, rh = hh;
+
+    // Viewport rect with wrap-around on horizontal axis
+    ctx.strokeStyle = 'rgba(200,169,110,0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.fillStyle = 'rgba(200,169,110,0.12)';
+
+    // Handle horizontal wrap
+    if (rx < 0) {
+      // Wraps left: draw two rects
+      ctx.fillRect(rx + mw, ry, rw - (mw - (rx + mw)) - (rx + mw - rx - rw + mw) , rh);
+      // Simpler: just clip and draw twice
+      ctx.save();
+      ctx.rect(0, 0, mw, mh);
+      ctx.clip();
+      ctx.fillRect(rx + mw, ry, -rx, rh);
+      ctx.strokeRect(rx + mw, ry, -rx, rh);
+      ctx.fillRect(0, ry, rx + rw, rh);
+      ctx.strokeRect(0, ry, rx + rw, rh);
+      ctx.restore();
+    } else if (rx + rw > mw) {
+      ctx.save();
+      ctx.rect(0, 0, mw, mh);
+      ctx.clip();
+      ctx.fillRect(rx, ry, mw - rx, rh);
+      ctx.strokeRect(rx, ry, mw - rx, rh);
+      ctx.fillRect(0, ry, rx + rw - mw, rh);
+      ctx.strokeRect(0, ry, rx + rw - mw, rh);
+      ctx.restore();
+    } else {
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.strokeRect(rx, ry, rw, rh);
+    }
+
+    // Centre dot
+    ctx.beginPath();
+    ctx.arc(cx > mw ? cx - mw : (cx < 0 ? cx + mw : cx), cy, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(200,169,110,1)';
+    ctx.fill();
+  }
+
+  // ── Hotspot overlay dots ──
+  function updateHsDots() {
+    const layer = $('editor-hs-layer');
+    layer.innerHTML = '';
+    if (!currentScene || !renderer) return;
+    (currentScene.hotspots || []).forEach(hs => {
+      const dot = document.createElement('div');
+      dot.className = 'editor-hs-dot' + (hs.id === selectedHsId ? ' selected' : '');
+      const icon = hs.type === 'lightbox' ? '⊞' : '→';
+      dot.textContent = icon;
+      dot.dataset.id = hs.id;
+      dot.onclick = (e) => { e.stopPropagation(); selectHotspot(hs.id); };
+      layer.appendChild(dot);
+    });
+    positionHsDots();
+  }
+
+  function positionHsDots() {
+    if (!renderer || !currentScene) return;
+    (currentScene.hotspots || []).forEach(hs => {
+      const dot = $('editor-hs-layer').querySelector(`[data-id="${hs.id}"]`);
+      if (!dot) return;
+      const p = renderer.project(hs.yaw, hs.pitch);
+      dot.style.left = p.x + 'px';
+      dot.style.top = p.y + 'px';
+      dot.style.display = p.visible ? 'flex' : 'none';
+    });
+    drawMinimap();
+  }
+
+  // Override onFrame to also position dots
+  function setupRendererFrame() {
+    if (renderer) renderer.onFrame = positionHsDots;
+  }
+
+  // ── Drag ──
+  let dragMoved = false;
+  function onDown(e) {
+    isDragging = true; dragMoved = false;
+    lastX = e.clientX; lastY = e.clientY;
+  }
+  function onMove(e) {
+    if (!isDragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMoved = true;
+    lastX = e.clientX; lastY = e.clientY;
+    renderer.yaw += dx * 0.18;
+    renderer.pitch += dy * 0.18;
+    renderer.updateCamera();
+  }
+  function onUp() { isDragging = false; }
+  function onWheel(e) {
+    e.preventDefault();
+    renderer.fov = clamp(renderer.fov + e.deltaY * 0.05, renderer.minFov, renderer.maxFov);
+    renderer.updateCamera();
+  }
+
+  // ── File upload ──
+  function onDragOver(e) { e.preventDefault(); $('editor-upload-zone').classList.add('drag-over'); }
+  function onDragLeave() { $('editor-upload-zone').classList.remove('drag-over'); }
+  function onDrop(e) {
+    e.preventDefault(); $('editor-upload-zone').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleImageFile(file);
+  }
+  function onFileInput(e) {
+    const file = e.target.files[0];
+    if (file) handleImageFile(file);
+    e.target.value = '';
+  }
+
+  const VALID_IMAGE_TYPES = new Set(['image/jpeg','image/jpg','image/png','image/webp','image/tiff','image/heic','image/heif']);
+  const VALID_IMAGE_EXTS  = /\.(jpe?g|png|webp|tiff?|heic|heif)$/i;
+
+  function validateImageFile(file) {
+    // Accept if MIME is a known image type OR the extension matches (covers cases
+    // where the OS/browser reports a blank or generic MIME for panoramic JPEGs).
+    const mimeOk = VALID_IMAGE_TYPES.has(file.type) || file.type.startsWith('image/');
+    const extOk  = VALID_IMAGE_EXTS.test(file.name);
+    if (!mimeOk && !extOk) {
+      toast(`"${file.name}" is not a supported image (JPG, PNG, WEBP, TIFF, HEIC)`, 'error', 4000);
+      return false;
+    }
+    return true;
+  }
+
+  async function handleImageFile(file) {
+    if (!validateImageFile(file)) return;
+    toast('Reading image…');
+
+    const arrayBuffer = await file.arrayBuffer();
+    const gpano = XMP.parse(arrayBuffer);
+    const dataUrl = await fileToDataUrl(file);
+
+    // Create scene
+    const sceneName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
+    const assetKey = (tour.id + '/' + file.name).replace(/[^a-zA-Z0-9._/-]/g, '_');
+    Store.saveAsset(assetKey, dataUrl);
+
+    const scene = makeScene(sceneName, assetKey);
+    // Seed minimap immediately from the just-uploaded data URL
+    initMinimap(dataUrl);
+    if (gpano) {
+      scene.hFovDeg = gpano.hFovDeg;
+      scene.vFovDeg = gpano.vFovDeg;
+      scene.hOffsetDeg = gpano.hOffsetDeg;
+      scene.vOffsetDeg = gpano.vOffsetDeg;
+      if (gpano.initialViewHeadingDegrees) scene.initialYaw = gpano.initialViewHeadingDegrees;
+    } else {
+      // Guess: if image aspect ratio > 3:1, probably panorama, use full 360°
+      const img = await loadImageFromDataUrl(dataUrl);
+      const aspect = img.naturalWidth / img.naturalHeight;
+      if (aspect > 2) {
+        scene.hFovDeg = 360;
+        scene.vFovDeg = Math.min(180, 360 / aspect);
+        scene.vOffsetDeg = -(90 - scene.vFovDeg / 2);
+      }
+    }
+
+    if (!tour.scenes) tour.scenes = [];
+    tour.scenes.push(scene);
+    if (!tour.defaultScene) tour.defaultScene = scene.id;
+    syncScene();
+    renderSceneList();
+    await loadScene(scene);
+    toast(gpano ? 'Image loaded — GPano metadata detected ✓' : 'Image loaded — adjust coverage in Config', 'success', 3500);
+  }
+
+  function onGalleryFileInput(e) {
+    const files = Array.from(e.target.files).filter(f => {
+      if (!validateImageFile(f)) return false;
+      return true;
+    });
+    if (!files.length || !pendingGalleryHsId) return;
+    const hs = (currentScene?.hotspots || []).find(h => h.id === pendingGalleryHsId);
+    if (!hs) return;
+    Promise.all(files.map(async f => {
+      const dataUrl = await fileToDataUrl(f);
+      const key = tour.id + '/gallery/' + f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      Store.saveAsset(key, dataUrl);
+      return { src: key, caption: f.name.replace(/\.[^.]+$/, '') };
+    })).then(items => {
+      hs.gallery = [...(hs.gallery || []), ...items];
+      renderGalleryGrid(hs);
+      syncScene();
+      toast(`${items.length} image(s) added`, 'success');
+    });
+    e.target.value = '';
+  }
+
+  function fileToDataUrl(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  function loadImageFromDataUrl(src) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = rej;
+      img.src = src;
+    });
+  }
+
+  // ── Tab switching ──
+  function switchTab(name, el) {
+    document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.sidebar-tab-panel').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    $('tab-' + name).classList.add('active');
+    if (name === 'settings') renderSettingsPanel();
+    if (name === 'hotspots') renderHsList();
+  }
+
+  // ── Sync to storage ──
+  function syncScene() {
+    if (!tour) return;
+    tour.updatedAt = Date.now();
+    Store.saveTour(tour.id, tour);
+  }
+
+  // ── Save / Export ──
+  function save() {
+    syncScene();
+    toast('Saved to browser storage', 'success');
+  }
+
+  async function exportZip() {
+    if (!tour) { toast('No tour loaded', 'error'); return; }
+    toast('Building ZIP…');
+    const zip = new JSZip();
+    const folder = zip.folder(tour.id);
+
+    // Build tour.json (without asset data urls — just paths)
+    const tourJson = JSON.parse(JSON.stringify(tour));
+    folder.file('tour.json', JSON.stringify(tourJson, null, 2));
+
+    // Collect all asset keys
+    const assetKeys = new Set();
+    (tour.scenes || []).forEach(s => {
+      assetKeys.add(s.image);
+      (s.hotspots || []).forEach(hs => {
+        (hs.gallery || []).forEach(g => assetKeys.add(g.src));
+      });
+    });
+
+    // Add assets to zip
+    for (const key of assetKeys) {
+      const dataUrl = Store.getAsset(key);
+      if (!dataUrl) continue;
+      const b64 = dataUrl.split(',')[1];
+      const mime = dataUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
+      const ext = mime.split('/')[1] || 'jpg';
+      // Use relative path within tour folder
+      const relPath = key.startsWith(tour.id + '/') ? key.slice(tour.id.length + 1) : key;
+      folder.file(relPath, b64, { base64: true });
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = tour.id + '.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('ZIP exported', 'success');
+  }
+
+  function destroy() {
+    if (renderer) { renderer.dispose(); renderer = null; }
+    tour = null; currentScene = null; selectedHsId = null;
+  }
+
+  function currentTourId() { return tour?.id; }
+
+  return {
+    init, load, setTour, destroy, currentTourId,
+    addScene, deleteScene,
+    switchTab,
+    toggleHsPlacement,
+    applySettings, setDefault, useCurrentAngleAsInitial,
+    saveHotspot, deleteHotspot, closeHsPanel,
+    removeGalleryImg,
+    onHsTypeChange,
+    onDragOver, onDragLeave, onDrop, onFileInput,
+    onGalleryFileInput,
+    save, exportZip,
+  };
+})();
+
+/* ════════════════════════════════════════════════════════
+   APP ROUTER
+════════════════════════════════════════════════════════ */
+const App = (() => {
+  let currentPage = null;
+
+  function init() {
+    Viewer.init();
+    Editor.init();
+    window.addEventListener('hashchange', route);
+    route();
+  }
+
+  function navigate(path) {
+    window.location.hash = path;
+  }
+
+  function route() {
+    const hash = window.location.hash.slice(1) || 'tours';
+    const [page, ...params] = hash.split('/');
+
+    // Teardown
+    if (currentPage === 'viewer') Viewer.destroy();
+    if (currentPage === 'editor') Editor.destroy();
+
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+
+    if (page === 'tours') {
+      $('page-tours').classList.add('active');
+      renderToursList();
+    } else if (page === 'view' && params[0]) {
+      $('page-viewer').classList.add('active');
+      Viewer.init(); // re-init after destroy
+      Viewer.load(params[0]);
+    } else if (page === 'edit') {
+      $('page-editor').classList.add('active');
+      Editor.init();
+      if (params[0] && params[0] !== '__new__') {
+        Editor.load(params[0]);
+      }
+      // __new__ is handled via modal
+    } else {
+      $('page-tours').classList.add('active');
+      renderToursList();
+    }
+    currentPage = page;
+  }
+
+  function renderToursList() {
+    const grid = $('tours-grid');
+    const tours = Store.listTours();
+    if (!tours.length) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="icon">⬡</div>
+          <p>No tours yet. Create your first tour to get started.</p>
+          <button class="btn primary" onclick="App.newTour()">+ New Tour</button>
+        </div>`;
+      return;
+    }
+    grid.innerHTML = '';
+    tours.forEach(t => {
+      const thumb = getThumbSrc(t);
+      const scenes = t.scenes?.length || 0;
+      const updated = new Date(t.updatedAt || t.createdAt || Date.now()).toLocaleDateString();
+      const card = document.createElement('div');
+      card.className = 'tour-card';
+      card.innerHTML = `
+        <div class="tour-card-thumb">
+          ${thumb
+            ? `<img src="${thumb}" alt="${t.name}">`
+            : `<div class="thumb-placeholder">⬡</div>`}
+        </div>
+        <div class="tour-card-body">
+          <div class="tour-card-name">${t.name}</div>
+          ${t.description ? `<div class="tour-card-meta text2" style="font-size:12px">${t.description}</div>` : ''}
+          <div class="tour-card-meta">${scenes} scene${scenes !== 1 ? 's' : ''} · ${updated}</div>
+          <div class="tour-card-actions">
+            <button class="btn sm primary grow" onclick="App.navigate('view/${t.id}')">▶ View</button>
+            <button class="btn sm" onclick="App.navigate('edit/${t.id}')">✏ Edit</button>
+            <button class="btn sm danger-btn" onclick="App.deleteTour('${t.id}', event)">✕</button>
+          </div>
+        </div>`;
+      grid.appendChild(card);
+    });
+  }
+
+  function getThumbSrc(t) {
+    const first = t.scenes?.[0];
+    if (!first?.image) return null;
+    return Store.getAsset(first.image) || null;
+  }
+
+  function newTour() {
+    $('modal-overlay').classList.remove('hidden');
+    $('new-tour-name').value = '';
+    $('new-tour-desc').value = '';
+    setTimeout(() => $('new-tour-name').focus(), 50);
+  }
+  function closeModal() { $('modal-overlay').classList.add('hidden'); }
+  function createTour() {
+    const name = $('new-tour-name').value.trim();
+    if (!name) { $('new-tour-name').focus(); return; }
+    const desc = $('new-tour-desc').value.trim();
+    const t = makeTour(name, desc);
+    Store.saveTour(t.id, t);
+    closeModal();
+    navigate('edit/' + t.id);
+    // The editor page will load; tell Editor about the new tour
+    setTimeout(() => Editor.load(t.id), 100);
+  }
+
+  function deleteTour(id, e) {
+    e.stopPropagation();
+    if (!confirm('Delete this tour? This cannot be undone.')) return;
+    Store.deleteAssetsByPrefix(id + '/');
+    Store.deleteTour(id);
+    renderToursList();
+    toast('Tour deleted');
+  }
+
+  function editCurrentTour() {
+    const id = Viewer.currentTourId();
+    if (id) navigate('edit/' + id);
+  }
+
+  return { init, navigate, route, newTour, closeModal, createTour, deleteTour, editCurrentTour };
+})();
+
+// Boot
+window.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+</body>
+</html>
