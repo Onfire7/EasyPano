@@ -862,39 +862,39 @@ class PanoRenderer {
     }
     this.gpano = gpano;
 
-    // View from inside: use BackSide — no geometry flipping needed.
-    const geo = new THREE.SphereGeometry(500, 80, 40);
-
-    // Remap UVs for partial equirectangular (e.g. Google Pixel panorama)
-    if (gpano && gpano.hFovDeg < 358) {
-      const hFrac = gpano.hFovDeg / 360;
-      const vFrac = gpano.vFovDeg / 180;
-      const hOff  = gpano.hOffsetDeg / 360;
-      // SphereGeometry V=0→south pole, V=1→north pole.
-      // vOffsetDeg is the elevation of the bottom edge in degrees (-90=south,+90=north).
-      // Convert to UV: bottom edge UV = 1 - (vOffsetDeg+90)/180, top = bottom + vFrac
-      const vBottom = 1 - (gpano.vOffsetDeg + 90) / 180;
-      const vTop    = vBottom - vFrac; // V increases downward in sphere UV
-
-      const uvs = geo.attributes.uv;
-      for (let i = 0; i < uvs.count; i++) {
-        let u = uvs.getX(i);
-        let v = uvs.getY(i); // 0=south,1=north from SphereGeometry
-        // Mirror U because BackSide reverses horizontal
-        u = 1 - u;
-        u = hOff + u * hFrac;
-        v = vTop + v * vFrac;
-        uvs.setXY(i, u, v);
-      }
-      uvs.needsUpdate = true;
+    // Build the sphere so the panorama covers ONLY the angular region it
+    // actually spans (hFovDeg x vFovDeg). For a partial pano we generate a
+    // partial sphere: the uncovered part simply isn't drawn and shows through
+    // as the black background, instead of stretching the cropped image across
+    // the whole 360x180 sphere. A full pano uses a complete sphere.
+    const isPartial = gpano && (gpano.hFovDeg < 358 || gpano.vFovDeg < 178);
+    let geo;
+    if (isPartial) {
+      const hFov = clamp(gpano.hFovDeg, 1, 360);
+      const vFov = clamp(gpano.vFovDeg, 1, 180);
+      const phiLength = rad(hFov);
+      const thetaLength = rad(vFov);
+      // Centre the covered arc on the default forward direction (-Z).
+      const phiStart = rad(270) - phiLength / 2;
+      // vOffsetDeg is the elevation of the bottom edge; theta is measured from
+      // the top (+Y), so the top edge is at 90 - (vOffset + vFov) degrees.
+      let thetaStart = rad(90 - (gpano.vOffsetDeg + vFov));
+      thetaStart = clamp(thetaStart, 0, Math.PI - thetaLength);
+      geo = new THREE.SphereGeometry(500, 120, 80, phiStart, phiLength, thetaStart, thetaLength);
+      // Where to point the camera so the band is centred in view on load.
+      this._partialCenter = { yaw: 0, pitch: gpano.vOffsetDeg + vFov / 2 };
     } else {
-      // Full 360: just mirror U for BackSide
-      const uvs = geo.attributes.uv;
-      for (let i = 0; i < uvs.count; i++) {
-        uvs.setX(i, 1 - uvs.getX(i));
-      }
-      uvs.needsUpdate = true;
+      geo = new THREE.SphereGeometry(500, 80, 40);
+      this._partialCenter = null;
     }
+
+    // Mirror U because we view the sphere from the inside (BackSide). The
+    // default geometry UVs already map the image [0,1] across the covered span.
+    const uvs = geo.attributes.uv;
+    for (let i = 0; i < uvs.count; i++) {
+      uvs.setX(i, 1 - uvs.getX(i));
+    }
+    uvs.needsUpdate = true;
 
     if (this.texture) {
       // Keep the NPOT-safe settings from loadScene so the texture isn't blacked
@@ -953,18 +953,26 @@ class PanoRenderer {
     this.texture.needsUpdate = true;
 
     let gpano = null;
-    if (scene.hFovDeg && scene.hFovDeg < 358) {
+    if (scene.hFovDeg && (scene.hFovDeg < 358 || (scene.vFovDeg && scene.vFovDeg < 178))) {
       gpano = {
         hFovDeg: scene.hFovDeg,
         vFovDeg: scene.vFovDeg,
         hOffsetDeg: scene.hOffsetDeg || 0,
-        vOffsetDeg: scene.vOffsetDeg || -30,
+        vOffsetDeg: (scene.vOffsetDeg != null ? scene.vOffsetDeg : -30),
       };
     }
     this.buildSphere(gpano);
 
-    this.yaw = scene.initialYaw || 0;
-    this.pitch = scene.initialPitch || 0;
+    // For a partial pano the covered band is centred on the forward direction,
+    // so default the camera there (yaw 0 + vertical centre of coverage) unless
+    // the scene specifies its own initial orientation.
+    if (this._partialCenter) {
+      this.yaw = scene.initialYaw || this._partialCenter.yaw;
+      this.pitch = scene.initialPitch || this._partialCenter.pitch;
+    } else {
+      this.yaw = scene.initialYaw || 0;
+      this.pitch = scene.initialPitch || 0;
+    }
     this.updateCamera();
   }
 
@@ -1859,7 +1867,10 @@ const Editor = (() => {
       scene.vFovDeg = gpano.vFovDeg;
       scene.hOffsetDeg = gpano.hOffsetDeg;
       scene.vOffsetDeg = gpano.vOffsetDeg;
-      if (gpano.initialViewHeadingDegrees) scene.initialYaw = gpano.initialViewHeadingDegrees;
+      // The covered band is centred on the forward direction, so face straight
+      // ahead and tilt to the vertical centre of the coverage on arrival.
+      scene.initialYaw = 0;
+      scene.initialPitch = Math.round((gpano.vOffsetDeg || 0) + (gpano.vFovDeg || 0) / 2);
     } else {
       // Guess: if image aspect ratio > 3:1, probably panorama, use full 360°
       const img = await loadImageFromDataUrl(dataUrl);
